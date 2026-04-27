@@ -1,0 +1,69 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dartbrains-tools"
+version = "0.1.0"
+description = "Helper library and interactive anywidgets for the DartBrains fMRI course"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "CC-BY-SA-4.0"
+authors = [
+    { name = "Luke Chang", email = "luke.j.chang@dartmouth.edu" },
+]
+keywords = ["neuroimaging", "fmri", "anywidget", "education", "marimo"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Education",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+]
+dependencies = [
+    "anywidget>=0.9.21",
+    "traitlets",
+    "numpy>=2.0",
+    "scipy>=1.13",
+    "plotly>=6.0",
+    "pandas",
+    "huggingface-hub>=1.0",
+]
+
+[project.optional-dependencies]
+notebook = ["marimo>=0.21"]
+
+[project.urls]
+Homepage = "https://dartbrains.org"
+Source = "https://github.com/ljchang/dartbrains-tools"
+Issues = "https://github.com/ljchang/dartbrains-tools/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dartbrains_tools"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/dartbrains_tools",
+    "tests",
+    "README.md",
+    "LICENSE",
+    "pyproject.toml",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP"]
+ignore = ["E501"]
