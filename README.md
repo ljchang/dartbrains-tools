@@ -54,4 +54,6 @@ uv build
 
 ## License
 
-CC-BY-SA-4.0 — same as the parent course materials.
+MIT. The parent course materials at [dartbrains](https://github.com/ljchang/dartbrains)
+remain CC-BY-SA-4.0; this companion library is permissive so it can be reused
+in any downstream project.
