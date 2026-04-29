@@ -148,7 +148,7 @@ export default {
     let lastTime = null;
 
     function resetState() {
-      const flipDeg = model.get("flip_angle");
+      const flipDeg = model.get("flip_angle") ?? 90.0;
       const flipRad = flipDeg * Math.PI / 180;
       Mxy = Math.sin(flipRad);
       Mz = Math.cos(flipRad);
@@ -170,71 +170,79 @@ export default {
     model.on("change:t2", () => {});
 
     let animId;
+    let _animateErrLogged = false;
 
     function animate(timestamp) {
       animId = requestAnimationFrame(animate);
 
-      if (model.get("paused")) {
+      try {
+        if (model.get("paused") ?? false) {
+          lastTime = timestamp;
+          controls.update();
+          renderer.render(scene, camera);
+          return;
+        }
+
+        if (!lastTime) lastTime = timestamp;
+        const dtMs = Math.min(timestamp - lastTime, 50);
         lastTime = timestamp;
+        const dtSec = dtMs / 1000;
+
+        const b0 = model.get("b0") ?? 3.0;
+        const showRelax = model.get("show_relaxation") ?? false;
+        const t1 = model.get("t1") ?? 0.0;
+        const t2 = model.get("t2") ?? 0.0;
+
+        const visualFreq = b0 * 0.4;
+        phi += 2 * Math.PI * visualFreq * dtSec;
+
+        if (showRelax && t1 > 0 && t2 > 0) {
+          Mxy *= Math.exp(-dtSec / (t2 / 1000));
+          Mz = 1 + (Mz - 1) * Math.exp(-dtSec / (t1 / 1000));
+        }
+
+        const Mx = Mxy * Math.cos(phi);
+        const My = Mxy * Math.sin(phi);
+
+        // Three.js mapping: physics X->X, physics Z(B0)->Y(up), physics Y->Z
+        const tx = Mx;
+        const ty = Mz;
+        const tz = My;
+
+        const mag = Math.sqrt(tx * tx + ty * ty + tz * tz);
+        if (mag > 0.001) {
+          const dir = new THREE.Vector3(tx, ty, tz).normalize();
+          const up = new THREE.Vector3(0, 1, 0);
+          const quat = new THREE.Quaternion().setFromUnitVectors(up, dir);
+          arrowGroup.quaternion.copy(quat);
+          arrowGroup.scale.set(1, mag, 1);
+        }
+
+        trailPositions[trailIdx * 3] = tx * mag;
+        trailPositions[trailIdx * 3 + 1] = ty * mag;
+        trailPositions[trailIdx * 3 + 2] = tz * mag;
+        trailIdx = (trailIdx + 1) % TRAIL_LEN;
+        trailCount = Math.min(trailCount + 1, TRAIL_LEN);
+        trailGeo.setDrawRange(0, trailCount);
+        trailGeo.attributes.position.needsUpdate = true;
+
+        // Update scope buffer (subsample to ~30fps for readability)
+        scopeFrameCount++;
+        if (scopeFrameCount % 2 === 0) {
+          mxScope[scopeIdx % SCOPE_LEN] = Mx;
+          scopeIdx++;
+        }
+
+        drawPanel(sigCtx, SIG_WIDTH, SIG_HEIGHT, Mxy, Mz, Mx, b0, mxScope, scopeIdx, SCOPE_LEN);
+
         controls.update();
         renderer.render(scene, camera);
-        return;
+      } catch (e) {
+        if (!_animateErrLogged) {
+          _animateErrLogged = true;
+          console.warn("[PrecessionWidget] animate frame error (logged once):", e);
+        }
       }
-
-      if (!lastTime) lastTime = timestamp;
-      const dtMs = Math.min(timestamp - lastTime, 50);
-      lastTime = timestamp;
-      const dtSec = dtMs / 1000;
-
-      const b0 = model.get("b0");
-      const showRelax = model.get("show_relaxation");
-      const t1 = model.get("t1");
-      const t2 = model.get("t2");
-
-      const visualFreq = b0 * 0.4;
-      phi += 2 * Math.PI * visualFreq * dtSec;
-
-      if (showRelax && t1 > 0 && t2 > 0) {
-        Mxy *= Math.exp(-dtSec / (t2 / 1000));
-        Mz = 1 + (Mz - 1) * Math.exp(-dtSec / (t1 / 1000));
-      }
-
-      const Mx = Mxy * Math.cos(phi);
-      const My = Mxy * Math.sin(phi);
-
-      // Three.js mapping: physics X->X, physics Z(B0)->Y(up), physics Y->Z
-      const tx = Mx;
-      const ty = Mz;
-      const tz = My;
-
-      const mag = Math.sqrt(tx * tx + ty * ty + tz * tz);
-      if (mag > 0.001) {
-        const dir = new THREE.Vector3(tx, ty, tz).normalize();
-        const up = new THREE.Vector3(0, 1, 0);
-        const quat = new THREE.Quaternion().setFromUnitVectors(up, dir);
-        arrowGroup.quaternion.copy(quat);
-        arrowGroup.scale.set(1, mag, 1);
-      }
-
-      trailPositions[trailIdx * 3] = tx * mag;
-      trailPositions[trailIdx * 3 + 1] = ty * mag;
-      trailPositions[trailIdx * 3 + 2] = tz * mag;
-      trailIdx = (trailIdx + 1) % TRAIL_LEN;
-      trailCount = Math.min(trailCount + 1, TRAIL_LEN);
-      trailGeo.setDrawRange(0, trailCount);
-      trailGeo.attributes.position.needsUpdate = true;
-
-      // Update scope buffer (subsample to ~30fps for readability)
-      scopeFrameCount++;
-      if (scopeFrameCount % 2 === 0) {
-        mxScope[scopeIdx % SCOPE_LEN] = Mx;
-        scopeIdx++;
-      }
-
-      drawPanel(sigCtx, SIG_WIDTH, SIG_HEIGHT, Mxy, Mz, Mx, b0, mxScope, scopeIdx, SCOPE_LEN);
-
-      controls.update();
-      renderer.render(scene, camera);
     }
 
     animId = requestAnimationFrame(animate);

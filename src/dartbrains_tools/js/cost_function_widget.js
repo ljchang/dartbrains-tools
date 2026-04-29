@@ -40,37 +40,45 @@ export default {
 
     let animId;
     let lastTime = null;
+    let _animateErrLogged = false;
 
     function animate(timestamp) {
       animId = requestAnimationFrame(animate);
 
-      const tx = model.get("trans_x");
-      const ty = model.get("trans_y");
+      try {
+        const tx = model.get("trans_x") ?? 0.0;
+        const ty = model.get("trans_y") ?? 0.0;
 
-      // Create target image: same-size square shifted by (tx, ty) from origin
-      const targetImg = new Float32Array(N * N);
-      for (let y = 0; y < N; y++) {
-        for (let x = 0; x < N; x++) {
-          const ox = x - Math.round(tx); // original coordinate
-          const oy = y - Math.round(ty);
-          if (ox >= 0 && ox < SQ && oy >= 0 && oy < SQ) {
-            targetImg[y * N + x] = 1;
+        // Create target image: same-size square shifted by (tx, ty) from origin
+        const targetImg = new Float32Array(N * N);
+        for (let y = 0; y < N; y++) {
+          for (let x = 0; x < N; x++) {
+            const ox = x - Math.round(tx); // original coordinate
+            const oy = y - Math.round(ty);
+            if (ox >= 0 && ox < SQ && oy >= 0 && oy < SQ) {
+              targetImg[y * N + x] = 1;
+            }
           }
         }
+
+        // Compute SSE
+        let sse = 0;
+        for (let i = 0; i < N * N; i++) {
+          const d = targetImg[i] - refImg[i];
+          sse += d * d;
+        }
+
+        // Record history
+        sseHistory.push({ tx, ty, sse });
+        if (sseHistory.length > SSE_HISTORY) sseHistory.shift();
+
+        draw(ctx, W, H, targetImg, refImg, N, tx, ty, sse, sseHistory);
+      } catch (e) {
+        if (!_animateErrLogged) {
+          _animateErrLogged = true;
+          console.warn("[CostFunctionWidget] animate frame error (logged once):", e);
+        }
       }
-
-      // Compute SSE
-      let sse = 0;
-      for (let i = 0; i < N * N; i++) {
-        const d = targetImg[i] - refImg[i];
-        sse += d * d;
-      }
-
-      // Record history
-      sseHistory.push({ tx, ty, sse });
-      if (sseHistory.length > SSE_HISTORY) sseHistory.shift();
-
-      draw(ctx, W, H, targetImg, refImg, N, tx, ty, sse, sseHistory);
     }
 
     function drawImage(ctx, img, n, x0, y0, size, title) {

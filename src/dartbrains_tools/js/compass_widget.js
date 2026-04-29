@@ -74,11 +74,11 @@ export default {
     let lastTime = null;
     let pushed = false;
     let pushTime = 0;
-    let prevB0 = model.get("b0");
+    let prevB0 = model.get("b0") ?? 3.0;
 
     // Re-kick needle whenever B0 changes
     model.on("change:b0", () => {
-      const newB0 = model.get("b0");
+      const newB0 = model.get("b0") ?? 3.0;
       if (Math.abs(newB0 - prevB0) > 0.01) {
         angle = 1.2 + Math.random() * 0.5; // kick to ~70-100°
         angVel = 2.0;
@@ -114,39 +114,47 @@ export default {
     });
 
     let animId;
+    let _animateErrLogged = false;
 
     function animate(timestamp) {
       animId = requestAnimationFrame(animate);
 
-      if (!lastTime) lastTime = timestamp;
-      const dtMs = Math.min(timestamp - lastTime, 50);
-      lastTime = timestamp;
-      const dt = dtMs / 1000;
+      try {
+        if (!lastTime) lastTime = timestamp;
+        const dtMs = Math.min(timestamp - lastTime, 50);
+        lastTime = timestamp;
+        const dt = dtMs / 1000;
 
-      const b0 = model.get("b0");
+        const b0 = model.get("b0") ?? 3.0;
 
-      if (b0 > 0) {
-        // Damped harmonic oscillator: torque toward 0, damping proportional to b0
-        const springK = b0 * 8.0;    // restoring torque
-        const damping = b0 * 1.2;    // damping coefficient
-        const torque = -springK * angle;
-        angVel += torque * dt;
-        angVel *= Math.exp(-damping * dt);  // exponential damping
-      } else {
-        // No field: just friction
-        angVel *= Math.exp(-0.3 * dt);
+        if (b0 > 0) {
+          // Damped harmonic oscillator: torque toward 0, damping proportional to b0
+          const springK = b0 * 8.0;    // restoring torque
+          const damping = b0 * 1.2;    // damping coefficient
+          const torque = -springK * angle;
+          angVel += torque * dt;
+          angVel *= Math.exp(-damping * dt);  // exponential damping
+        } else {
+          // No field: just friction
+          angVel *= Math.exp(-0.3 * dt);
+        }
+
+        angle += angVel * dt;
+        pushTime += dt;
+
+        // Record coil signal (proportional to angular velocity / rate of change)
+        const coilSignal = b0 > 0 ? Math.sin(angle) * Math.exp(-0.5 * b0 * pushTime) : 0;
+        signalBuf[sigIdx % SCOPE_LEN] = angle / Math.PI; // normalized angle
+        sigIdx++;
+
+        drawCompass(ctx, SIZE, angle, b0);
+        drawSignal(sigCtx, SIG_W, SIG_H, signalBuf, sigIdx, SCOPE_LEN, b0, angle);
+      } catch (e) {
+        if (!_animateErrLogged) {
+          _animateErrLogged = true;
+          console.warn("[CompassWidget] animate frame error (logged once):", e);
+        }
       }
-
-      angle += angVel * dt;
-      pushTime += dt;
-
-      // Record coil signal (proportional to angular velocity / rate of change)
-      const coilSignal = b0 > 0 ? Math.sin(angle) * Math.exp(-0.5 * b0 * pushTime) : 0;
-      signalBuf[sigIdx % SCOPE_LEN] = angle / Math.PI; // normalized angle
-      sigIdx++;
-
-      drawCompass(ctx, SIZE, angle, b0);
-      drawSignal(sigCtx, SIG_W, SIG_H, signalBuf, sigIdx, SCOPE_LEN, b0, angle);
     }
 
     function drawCompass(ctx, s, angle, b0) {

@@ -84,30 +84,38 @@ export default {
     let currentSample = 0;
     let lastTime = null;
     let animId;
+    let _animateErrLogged = false;
 
     function animate(timestamp) {
       animId = requestAnimationFrame(animate);
 
-      if (!lastTime) lastTime = timestamp;
-      const dtMs = Math.min(timestamp - lastTime, 50);
-      lastTime = timestamp;
+      try {
+        if (!lastTime) lastTime = timestamp;
+        const dtMs = Math.min(timestamp - lastTime, 50);
+        lastTime = timestamp;
 
-      const speed = model.get("speed");
-      const pattern = model.get("pattern");
+        const speed = model.get("speed") ?? 1.0;
+        const pattern = model.get("pattern") ?? "single";
 
-      // Advance time
-      const samplesToAdd = Math.ceil(speed * 15 * dtMs / 1000);
-      currentSample = Math.min(currentSample + samplesToAdd, totalDur);
+        // Advance time
+        const samplesToAdd = Math.ceil(speed * 15 * dtMs / 1000);
+        currentSample = Math.min(currentSample + samplesToAdd, totalDur);
 
-      // Reset when done
-      if (currentSample >= totalDur) {
-        currentSample = 0;
+        // Reset when done
+        if (currentSample >= totalDur) {
+          currentSample = 0;
+        }
+
+        const stim = makeStimulus(pattern);
+        const bold = convolve(stim, hrfArr, hrfLen, currentSample);
+
+        draw(ctx, W, H, stim, hrfArr, hrfLen, bold, currentSample, totalDur, dt);
+      } catch (e) {
+        if (!_animateErrLogged) {
+          _animateErrLogged = true;
+          console.warn("[ConvolutionWidget] animate frame error (logged once):", e);
+        }
       }
-
-      const stim = makeStimulus(pattern);
-      const bold = convolve(stim, hrfArr, hrfLen, currentSample);
-
-      draw(ctx, W, H, stim, hrfArr, hrfLen, bold, currentSample, totalDur, dt);
     }
 
     function draw(ctx, w, h, stim, hrf, hrfLen, bold, current, total, dt) {

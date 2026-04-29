@@ -62,7 +62,7 @@ export default {
     scene.add(makeLabel("z (B\u2080)", [0, 0, 1.45], "#4444cc"));
 
     // --- Spins ---
-    const nSpins = model.get("n_protons");
+    const nSpins = model.get("n_protons") ?? 100;
     const spins = [];
     const rng = mulberry32(42); // deterministic RNG
 
@@ -136,16 +136,18 @@ export default {
 
     let lastTime = null;
     let animId;
+    let _animateErrLogged = false;
 
     function animate(timestamp) {
       animId = requestAnimationFrame(animate);
 
+      try {
       if (!lastTime) lastTime = timestamp;
       const dtMs = Math.min(timestamp - lastTime, 50);
       lastTime = timestamp;
       const dt = dtMs / 1000;
 
-      const b0On = model.get("b0_on");
+      const b0On = model.get("b0_on") ?? false;
       const t = timestamp / 1000;
 
       // Update each spin's target and current direction
@@ -214,6 +216,12 @@ export default {
 
       controls.update();
       renderer.render(scene, camera);
+      } catch (e) {
+        if (!_animateErrLogged) {
+          _animateErrLogged = true;
+          console.warn("[NetMagnetizationWidget] animate frame error (logged once):", e);
+        }
+      }
     }
 
     animId = requestAnimationFrame(animate);

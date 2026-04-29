@@ -110,34 +110,42 @@ export default {
     matCtx.scale(2, 2);
 
     let animId;
+    let _animateErrLogged = false;
 
     function animate() {
       animId = requestAnimationFrame(animate);
 
-      // Read parameters
-      const tx = model.get("trans_x");
-      const ty = model.get("trans_y");
-      const tz = model.get("trans_z");
-      const rx = model.get("rot_x") * Math.PI / 180;
-      const ry = model.get("rot_y") * Math.PI / 180;
-      const rz = model.get("rot_z") * Math.PI / 180;
-      const sx = model.get("scale_x");
-      const sy = model.get("scale_y");
-      const sz = model.get("scale_z");
+      try {
+        // Read parameters
+        const tx = model.get("trans_x") ?? 0.0;
+        const ty = model.get("trans_y") ?? 0.0;
+        const tz = model.get("trans_z") ?? 0.0;
+        const rx = (model.get("rot_x") ?? 0.0) * Math.PI / 180;
+        const ry = (model.get("rot_y") ?? 0.0) * Math.PI / 180;
+        const rz = (model.get("rot_z") ?? 0.0) * Math.PI / 180;
+        const sx = model.get("scale_x") ?? 1.0;
+        const sy = model.get("scale_y") ?? 1.0;
+        const sz = model.get("scale_z") ?? 1.0;
 
-      // Apply transforms
-      cube.position.set(tx, ty, tz);
-      cube.rotation.set(rx, ry, rz, "XYZ");
-      cube.scale.set(sx, sy, sz);
+        // Apply transforms
+        cube.position.set(tx, ty, tz);
+        cube.rotation.set(rx, ry, rz, "XYZ");
+        cube.scale.set(sx, sy, sz);
 
-      // Build affine matrix for display
-      cube.updateMatrixWorld();
-      const m = cube.matrixWorld.elements;
+        // Build affine matrix for display
+        cube.updateMatrixWorld();
+        const m = cube.matrixWorld.elements;
 
-      drawMatrixPanel(matCtx, MAT_W, MAT_H, m, tx, ty, tz, rx, ry, rz, sx, sy, sz);
+        drawMatrixPanel(matCtx, MAT_W, MAT_H, m, tx, ty, tz, rx, ry, rz, sx, sy, sz);
 
-      controls.update();
-      renderer.render(scene, camera);
+        controls.update();
+        renderer.render(scene, camera);
+      } catch (e) {
+        if (!_animateErrLogged) {
+          _animateErrLogged = true;
+          console.warn("[TransformCubeWidget] animate frame error (logged once):", e);
+        }
+      }
     }
 
     function drawMatrixPanel(ctx, w, h, m, tx, ty, tz, rx, ry, rz, sx, sy, sz) {

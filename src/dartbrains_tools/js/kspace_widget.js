@@ -135,17 +135,19 @@ export default {
     }
 
     let animId;
+    let _animateErrLogged = false;
 
     function animate(timestamp) {
       animId = requestAnimationFrame(animate);
 
+      try {
       if (!lastTime) lastTime = timestamp;
       const dtMs = Math.min(timestamp - lastTime, 100);
       lastTime = timestamp;
       const dt = dtMs / 1000;
 
-      const speed = model.get("speed");
-      const maskType = model.get("mask_type");
+      const speed = model.get("speed") ?? 1.0;
+      const maskType = model.get("mask_type") ?? "progressive";
 
       // Progressive fill: add lines over time
       const linesToAdd = Math.ceil(linesPerSec * speed * dt);
@@ -168,7 +170,7 @@ export default {
         dispRe = new Float32Array(N * N);
         dispIm = new Float32Array(N * N);
         const half = N / 2;
-        const rFrac = model.get("radius_fraction");
+        const rFrac = model.get("radius_fraction") ?? 0.2;
         const maxR = Math.sqrt(half * half + half * half);
         const r = rFrac * maxR;
         for (let y = 0; y < N; y++) {
@@ -233,6 +235,12 @@ export default {
       }
 
       draw(ctx, W, H, phantomImg, kspaceImg, reconImg, N, currentLine, maskType);
+      } catch (e) {
+        if (!_animateErrLogged) {
+          _animateErrLogged = true;
+          console.warn("[KSpaceWidget] animate frame error (logged once):", e);
+        }
+      }
     }
 
     function draw(ctx, w, h, phImg, ksImg, rcImg, n, line, maskType) {

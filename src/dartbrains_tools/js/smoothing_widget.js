@@ -89,6 +89,7 @@ export default {
     let animId;
     let prevFwhm = -1;
     let smoothedData = null;
+    let _animateErrLogged = false;
     const phantomImgData = ctx.createImageData(N, N);
     const smoothImgData = ctx.createImageData(N, N);
 
@@ -104,24 +105,31 @@ export default {
     function animate() {
       animId = requestAnimationFrame(animate);
 
-      const fwhm = model.get("fwhm");
-      const sigma = fwhm / 2.355; // FWHM = 2.355 * sigma
+      try {
+        const fwhm = model.get("fwhm") ?? 0.0;
+        const sigma = fwhm / 2.355; // FWHM = 2.355 * sigma
 
-      // Only recompute if FWHM changed
-      if (fwhm !== prevFwhm) {
-        prevFwhm = fwhm;
-        smoothedData = gaussianSmooth(phantom, N, sigma);
+        // Only recompute if FWHM changed
+        if (fwhm !== prevFwhm) {
+          prevFwhm = fwhm;
+          smoothedData = gaussianSmooth(phantom, N, sigma);
 
-        for (let i = 0; i < N * N; i++) {
-          const v = Math.min(255, Math.max(0, smoothedData[i] * 255));
-          smoothImgData.data[i * 4] = v;
-          smoothImgData.data[i * 4 + 1] = v;
-          smoothImgData.data[i * 4 + 2] = v;
-          smoothImgData.data[i * 4 + 3] = 255;
+          for (let i = 0; i < N * N; i++) {
+            const v = Math.min(255, Math.max(0, smoothedData[i] * 255));
+            smoothImgData.data[i * 4] = v;
+            smoothImgData.data[i * 4 + 1] = v;
+            smoothImgData.data[i * 4 + 2] = v;
+            smoothImgData.data[i * 4 + 3] = 255;
+          }
+        }
+
+        draw(ctx, W, H, phantomImgData, smoothImgData, N, fwhm, sigma);
+      } catch (e) {
+        if (!_animateErrLogged) {
+          _animateErrLogged = true;
+          console.warn("[SmoothingWidget] animate frame error (logged once):", e);
         }
       }
-
-      draw(ctx, W, H, phantomImgData, smoothImgData, N, fwhm, sigma);
     }
 
     function draw(ctx, w, h, origImg, smoothImg, n, fwhm, sigma) {

@@ -87,11 +87,13 @@ export default {
     }
 
     let animId;
+    let _animateErrLogged = false;
 
     function animate(timestamp) {
       animId = requestAnimationFrame(animate);
 
-      if (model.get("paused")) {
+      try {
+      if (model.get("paused") ?? false) {
         lastTimestamp = timestamp;
         return;
       }
@@ -99,9 +101,9 @@ export default {
       if (!lastTimestamp) lastTimestamp = timestamp;
       const dtMs = Math.min(timestamp - lastTimestamp, 50);
       lastTimestamp = timestamp;
-      const speed = model.get("speed");
+      const speed = model.get("speed") ?? 1.0;
       const dt = (dtMs / 1000) * speed;
-      const seqType = model.get("sequence_type");
+      const seqType = model.get("sequence_type") ?? "spin_echo";
 
       phaseTime += dt;
       totalTime += dt;
@@ -173,6 +175,12 @@ export default {
       // --- Drawing ---
       draw(ctx, WIDTH, HEIGHT, spins, netX, netY, netMag,
            currentPhaseName, seqType, signalHistory, sigIdx, SIG_HISTORY);
+      } catch (e) {
+        if (!_animateErrLogged) {
+          _animateErrLogged = true;
+          console.warn("[SpinEnsembleWidget] animate frame error (logged once):", e);
+        }
+      }
     }
 
     function draw(ctx, w, h, spins, netX, netY, netMag, phaseName, seqType, sigHist, sIdx, sigLen) {

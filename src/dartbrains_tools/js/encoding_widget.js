@@ -58,6 +58,7 @@ export default {
 
     let lastTime = null;
     let animId;
+    let _animateErrLogged = false;
 
     // Animation stages
     const stages = [
@@ -72,46 +73,53 @@ export default {
     function animate(timestamp) {
       animId = requestAnimationFrame(animate);
 
-      if (!lastTime) lastTime = timestamp;
-      const dtMs = Math.min(timestamp - lastTime, 50);
-      lastTime = timestamp;
-      const dt = dtMs / 1000;
-      const speed = model.get("speed");
+      try {
+        if (!lastTime) lastTime = timestamp;
+        const dtMs = Math.min(timestamp - lastTime, 50);
+        lastTime = timestamp;
+        const dt = dtMs / 1000;
+        const speed = model.get("speed") ?? 1.0;
 
-      stageTime += dt * speed;
-      const stage = stages[stageIdx];
+        stageTime += dt * speed;
+        const stage = stages[stageIdx];
 
-      if (stageTime > stage.duration) {
-        stageTime -= stage.duration;
-        stageIdx = (stageIdx + 1) % stages.length;
-        // Reset phases between stages
-        if (stageIdx === 0) {
-          for (const v of voxels) v.phase = 0;
+        if (stageTime > stage.duration) {
+          stageTime -= stage.duration;
+          stageIdx = (stageIdx + 1) % stages.length;
+          // Reset phases between stages
+          if (stageIdx === 0) {
+            for (const v of voxels) v.phase = 0;
+          }
+        }
+
+        const t = timestamp / 1000;
+        const currentStage = stages[stageIdx];
+
+        // Update voxel frequencies and phases
+        for (const v of voxels) {
+          const baseFreq = 2.0; // base precession (visual)
+          let freqGx = 0;
+          let phaseGy = 0;
+
+          if (currentStage.name === "Frequency encoding (Gx)" || currentStage.name === "Both gradients") {
+            freqGx = (v.x - GRID / 2 + 0.5) * 0.8; // frequency varies with x
+          }
+          if (currentStage.name === "Phase encoding (Gy)" || currentStage.name === "Both gradients") {
+            phaseGy = (v.y - GRID / 2 + 0.5) * 0.5 * stageTime; // phase accumulates with y
+          }
+
+          v.frequency = baseFreq + freqGx;
+          v.phase += v.frequency * dt * Math.PI * 2;
+          v.phase += phaseGy * dt;
+        }
+
+        draw(ctx, W, H, voxels, GRID, CELL, gridLeft, gridTop, gridW, gridH, currentStage, stageIdx, stages.length, stageTime);
+      } catch (e) {
+        if (!_animateErrLogged) {
+          _animateErrLogged = true;
+          console.warn("[EncodingWidget] animate frame error (logged once):", e);
         }
       }
-
-      const t = timestamp / 1000;
-      const currentStage = stages[stageIdx];
-
-      // Update voxel frequencies and phases
-      for (const v of voxels) {
-        const baseFreq = 2.0; // base precession (visual)
-        let freqGx = 0;
-        let phaseGy = 0;
-
-        if (currentStage.name === "Frequency encoding (Gx)" || currentStage.name === "Both gradients") {
-          freqGx = (v.x - GRID / 2 + 0.5) * 0.8; // frequency varies with x
-        }
-        if (currentStage.name === "Phase encoding (Gy)" || currentStage.name === "Both gradients") {
-          phaseGy = (v.y - GRID / 2 + 0.5) * 0.5 * stageTime; // phase accumulates with y
-        }
-
-        v.frequency = baseFreq + freqGx;
-        v.phase += v.frequency * dt * Math.PI * 2;
-        v.phase += phaseGy * dt;
-      }
-
-      draw(ctx, W, H, voxels, GRID, CELL, gridLeft, gridTop, gridW, gridH, currentStage, stageIdx, stages.length, stageTime);
     }
 
     function draw(ctx, w, h, voxels, grid, cell, gl, gt, gw, gh, stage, sIdx, sTotal, sTime) {
