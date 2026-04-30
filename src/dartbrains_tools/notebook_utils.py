@@ -8,7 +8,8 @@ module loads cleanly in environments that don't have the optional
 
 from __future__ import annotations
 
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 
 def youtube(video_id: str):
