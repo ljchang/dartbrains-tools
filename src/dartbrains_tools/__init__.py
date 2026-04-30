@@ -1,11 +1,12 @@
 """DartBrains helper library: data loaders, MR physics simulations, anywidgets."""
 
-__version__ = "0.1.0"
+__version__ = "0.1.3"
 
-from . import data, mr_simulations, mr_widgets
+from . import bids, data, mr_simulations, mr_widgets
 
 __all__ = [
     "__version__",
+    "bids",
     "data",
     "mr_simulations",
     "mr_widgets",
