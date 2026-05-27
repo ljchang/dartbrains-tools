@@ -100,9 +100,7 @@ def get_file(
         if smoothed:
             mods.append("smooth6mm")
         mod_str = "_".join(mods) + "_" if mods else ""
-        filename = (
-            f"{func}/{sub}_{mod_str}task-{task}_space-{_SPACE}_desc-preproc_bold{extension}"
-        )
+        filename = f"{func}/{sub}_{mod_str}task-{task}_space-{_SPACE}_desc-preproc_bold{extension}"
     elif suffix == "confounds":
         filename = f"{func}/{sub}_task-{task}_desc-confounds_regressors.tsv"
     elif suffix == "mask":

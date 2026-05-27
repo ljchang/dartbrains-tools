@@ -104,9 +104,7 @@ def get_file(
     elif suffix == "confounds":
         filename = f"{func}/{sub}_task-{_TASK}_run-{run}_desc-confounds_regressors.tsv"
     elif suffix == "mask":
-        filename = (
-            f"{func}/{sub}_task-{_TASK}_run-{run}_space-{_SPACE}_desc-brain_mask{extension}"
-        )
+        filename = f"{func}/{sub}_task-{_TASK}_run-{run}_space-{_SPACE}_desc-brain_mask{extension}"
     elif suffix == "boldref":
         filename = f"{func}/{sub}_task-{_TASK}_run-{run}_space-{_SPACE}_boldref{extension}"
     else:
