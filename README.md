@@ -16,7 +16,9 @@ pip install "dartbrains-tools[notebook]"
 
 ## Modules
 
-- `dartbrains_tools.data` — load the Pinel Localizer dataset from the Hugging Face Hub.
+- `dartbrains_tools.data.localizer` — load the Pinel Localizer dataset from the Hugging Face Hub. The same API is re-exported at `dartbrains_tools.data` for back-compat.
+- `dartbrains_tools.data.sherlock` — load the Sherlock naturalistic-fMRI dataset (Chen et al. 2017).
+- `dartbrains_tools.data.paranoia` — load the Paranoia naturalistic-fMRI dataset (Finn et al. 2018).
 - `dartbrains_tools.mr_simulations` — Bloch equation solvers, signal generators,
   HRF, and Plotly visualization helpers.
 - `dartbrains_tools.mr_widgets` — 10 anywidgets for interactive MR physics teaching
@@ -35,11 +37,24 @@ w  # Interactive 3D Three.js animation in any anywidget host.
 ```
 
 ```python
+# Localizer (default; back-compat — also works as dartbrains_tools.data.localizer)
 from dartbrains_tools.data import get_subjects, get_file, load_events
 
 subjects = get_subjects()
-bold = get_file("S01", "bold")
+bold = get_file("S01", scope="derivatives", suffix="bold")
 events = load_events("S01")
+
+# Sherlock
+from dartbrains_tools.data import sherlock
+
+bold = sherlock.get_file("sub-01", task="sherlockPart1", suffix="bold")
+onsets = sherlock.load_onsets("watch")
+
+# Paranoia
+from dartbrains_tools.data import paranoia
+
+bold = paranoia.get_file("sub-tb2994", run=1, suffix="bold")
+participants = paranoia.load_participants()
 ```
 
 ## Development
