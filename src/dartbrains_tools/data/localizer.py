@@ -9,7 +9,8 @@ Files are downloaded on first access and cached locally by huggingface_hub.
 """
 
 import pandas as pd
-from huggingface_hub import hf_hub_download
+
+from ._hub import download
 
 REPO_ID = "dartbrains/localizer"
 
@@ -33,7 +34,7 @@ CONDITIONS = [
 
 def _download(filename: str) -> str:
     """Download a file from the dartbrains/localizer dataset. Returns local cached path."""
-    return hf_hub_download(repo_id=REPO_ID, filename=filename, repo_type="dataset")
+    return download(REPO_ID, filename)
 
 
 def get_subjects() -> list[str]:
