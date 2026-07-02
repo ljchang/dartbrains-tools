@@ -1,5 +1,33 @@
 """Smoke tests: every public symbol imports cleanly."""
 
+import subprocess
+import sys
+
+
+def _pulls_in(module: str, forbidden: str) -> bool:
+    """Whether importing ``module`` (in a fresh interpreter) also imports ``forbidden``."""
+    code = (
+        f"import {module}\n"
+        "import sys\n"
+        f"sys.exit(1 if {forbidden!r} in sys.modules else 0)\n"
+    )
+    return subprocess.run([sys.executable, "-c", code]).returncode == 1
+
+
+def test_mr_modules_do_not_import_huggingface_hub():
+    # Regression: WASM/Pyodide has no `termios`, which huggingface_hub imports at
+    # load time. The MR physics notebooks (mode: wasm) only need mr_simulations /
+    # mr_widgets, so importing them -- or the top-level package -- must NOT drag
+    # in huggingface_hub, or every WASM notebook dies with ModuleNotFoundError.
+    for module in (
+        "dartbrains_tools",
+        "dartbrains_tools.mr_simulations",
+        "dartbrains_tools.mr_widgets",
+    ):
+        assert not _pulls_in(module, "huggingface_hub"), (
+            f"importing {module} pulled in huggingface_hub (breaks WASM: no termios)"
+        )
+
 
 def test_top_level_package():
     import dartbrains_tools
