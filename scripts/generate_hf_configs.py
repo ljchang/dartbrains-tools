@@ -3,7 +3,7 @@
 
 Usage:
     python scripts/generate_hf_configs.py index --repo dartbrains/localizer --dry-run
-    python scripts/generate_hf_configs.py index --repo dartbrains/localizer --branch add-configs
+    python scripts/generate_hf_configs.py index --repo dartbrains/localizer
     python scripts/generate_hf_configs.py check --repo dartbrains/localizer
 """
 
@@ -67,7 +67,7 @@ def cmd_index(args):
             print(preview)
         return
     url = hub.upload_files(
-        repo, outputs, branch=args.branch,
+        repo, outputs,
         message="Generate uniform path-index load_dataset configs",
     )
     print(f"Opened PR: {url}")
@@ -97,7 +97,6 @@ def main():
     pi = sub.add_parser("index", help="generate + (optionally) upload configs")
     pi.add_argument("--repo", required=True, choices=list(DATASETS))
     pi.add_argument("--dry-run", action="store_true")
-    pi.add_argument("--branch", default="add-configs")
     pi.set_defaults(func=cmd_index)
     pc = sub.add_parser("check", help="verify row counts via load_dataset")
     pc.add_argument("--repo", required=True, choices=list(DATASETS))

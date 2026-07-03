@@ -109,6 +109,16 @@ def test_all_three_share_the_fmriprep_globs():
     assert len(set(globs.values())) == 1  # identical bold glob everywhere
 
 
+def test_replace_configs_block_tolerates_crlf():
+    from hf_configs.index import replace_configs_block
+
+    readme = "---\r\nlicense: x\r\nconfigs:\r\n  - config_name: old\r\n---\r\n# Body\r\n"
+    out = replace_configs_block(readme, "configs:\n  - config_name: new\n")
+    assert "license: x" in out
+    assert "config_name: new" in out
+    assert "config_name: old" not in out
+
+
 def test_replace_configs_block_preserves_sibling_keys():
     from hf_configs.index import replace_configs_block
 

@@ -17,8 +17,8 @@ def read_text(repo: str, path: str) -> str:
         return fh.read()
 
 
-def upload_files(repo: str, files: dict[str, str], branch: str, message: str) -> str:
-    """Upload each {repo_path: text} on *branch*, creating the branch/PR."""
+def upload_files(repo: str, files: dict[str, str], message: str) -> str:
+    """Upload each {repo_path: text} to *repo* as a new PR (create_pr=True)."""
     from huggingface_hub import CommitOperationAdd
 
     ops = [

@@ -92,6 +92,7 @@ def replace_configs_block(readme_text: str, configs_yaml: str) -> str:
     lines), preserving every other top-level frontmatter key, then appends
     the new block at the end of the frontmatter.
     """
+    readme_text = readme_text.replace("\r\n", "\n")  # tolerate CRLF READMEs
     m = re.match(r"^---\n(.*?)\n---\n(.*)$", readme_text, flags=re.DOTALL)
     if not m:
         raise ValueError("README has no YAML frontmatter")
