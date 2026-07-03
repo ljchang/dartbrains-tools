@@ -38,6 +38,7 @@ export default {
     wrapper.style.gap = "12px";
     wrapper.style.alignItems = "flex-start";
     wrapper.style.justifyContent = "center";
+    wrapper.style.flexWrap = "wrap";  // stack instead of overflow on narrow screens
     el.appendChild(wrapper);
 
     // Compass canvas
@@ -45,7 +46,8 @@ export default {
     canvas.width = SIZE * DPR;
     canvas.height = SIZE * DPR;
     canvas.style.width = SIZE + "px";
-    canvas.style.height = SIZE + "px";
+    canvas.style.maxWidth = "100%";
+    canvas.style.height = "auto";
     wrapper.appendChild(canvas);
     const ctx = canvas.getContext("2d");
     ctx.scale(DPR, DPR);
@@ -57,7 +59,8 @@ export default {
     sigCanvas.width = SIG_W * DPR;
     sigCanvas.height = SIG_H * DPR;
     sigCanvas.style.width = SIG_W + "px";
-    sigCanvas.style.height = SIG_H + "px";
+    sigCanvas.style.maxWidth = "100%";
+    sigCanvas.style.height = "auto";
     sigCanvas.style.borderRadius = "6px";
     sigCanvas.style.border = "1px solid #ddd";
     wrapper.appendChild(sigCanvas);

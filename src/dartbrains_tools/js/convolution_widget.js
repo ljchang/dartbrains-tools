@@ -4,14 +4,17 @@
 export default {
   render({ model, el }) {
     const W = 750;
-    const H = 400;
+    const H = 440;
     const DPR = Math.min(window.devicePixelRatio, 2);
 
     const canvas = document.createElement("canvas");
     canvas.width = W * DPR;
     canvas.height = H * DPR;
     canvas.style.width = W + "px";
-    canvas.style.height = H + "px";
+    // Responsive: scale down (preserving aspect) when the column is narrower
+    // than the intrinsic width instead of overflowing.
+    canvas.style.maxWidth = "100%";
+    canvas.style.height = "auto";
     canvas.style.borderRadius = "6px";
     canvas.style.border = "1px solid #ddd";
     el.appendChild(canvas);
@@ -125,7 +128,7 @@ export default {
 
       const pad = 50;
       const plotW = w - pad - 20;
-      const gapY = 15;
+      const gapY = 28;
 
       // Three rows: HRF (small), Stimulus, BOLD
       const hrfH = 70;

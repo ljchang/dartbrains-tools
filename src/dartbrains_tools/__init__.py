@@ -1,6 +1,6 @@
 """DartBrains helper library: data loaders, MR physics simulations, anywidgets."""
 
-__version__ = "0.1.5"
+__version__ = "0.1.6"
 
 from . import bids, mr_simulations, mr_widgets
 

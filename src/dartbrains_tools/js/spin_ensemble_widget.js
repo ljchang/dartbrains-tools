@@ -11,7 +11,8 @@ export default {
     canvas.width = WIDTH * DPR;
     canvas.height = HEIGHT * DPR;
     canvas.style.width = WIDTH + "px";
-    canvas.style.height = HEIGHT + "px";
+    canvas.style.maxWidth = "100%";
+    canvas.style.height = "auto";
     canvas.style.borderRadius = "8px";
     canvas.style.border = "1px solid #ddd";
     el.appendChild(canvas);

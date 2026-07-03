@@ -15,18 +15,27 @@ export default {
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(WIDTH, HEIGHT);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Responsive: never overflow a narrow column.
+    renderer.domElement.style.maxWidth = "100%";
+    renderer.domElement.style.height = "auto";
     el.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xf8f9fa);
 
+    // Aim above the origin: the net-magnetization arrow extends up +z, so the
+    // scene's vertical center sits well above 0. Framing the origin clipped
+    // the arrow tip off the top of the view.
+    const FOCUS_Y = 0.45;
     const camera = new THREE.PerspectiveCamera(40, WIDTH / HEIGHT, 0.1, 100);
-    camera.position.set(2.5, 2.0, 2.5);
-    camera.lookAt(0, 0, 0);
+    camera.position.set(2.8, 2.2, 2.8);
+    camera.lookAt(0, FOCUS_Y, 0);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
+    controls.target.set(0, FOCUS_Y, 0);
+    controls.update();
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.7));
     const dl = new THREE.DirectionalLight(0xffffff, 0.6);
@@ -205,7 +214,8 @@ export default {
         const netDir = new THREE.Vector3(netMx, netMy, netMz).normalize();
         const up = new THREE.Vector3(0, 1, 0);
         netGroup.quaternion.setFromUnitVectors(up, netDir);
-        netGroup.scale.set(1, netMag * 2, 1);
+        // Keep the arrow tip inside the ±1.3 axis extent (base arrow ~0.92 tall).
+        netGroup.scale.set(1, netMag * 1.4, 1);
         netGroup.visible = true;
       } else {
         netGroup.visible = false;

@@ -14,6 +14,7 @@ export default {
     container.style.gap = "16px";
     container.style.alignItems = "flex-start";
     container.style.justifyContent = "center";
+    container.style.flexWrap = "wrap";  // stack instead of overflow on narrow screens
     el.appendChild(container);
 
     const WIDTH = 550;
@@ -30,6 +31,8 @@ export default {
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(WIDTH, HEIGHT);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.domElement.style.maxWidth = "100%";
+    renderer.domElement.style.height = "auto";
     container.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -102,7 +105,8 @@ export default {
     matCanvas.width = MAT_W * 2;
     matCanvas.height = MAT_H * 2;
     matCanvas.style.width = MAT_W + "px";
-    matCanvas.style.height = MAT_H + "px";
+    matCanvas.style.maxWidth = "100%";
+    matCanvas.style.height = "auto";
     matCanvas.style.borderRadius = "6px";
     matCanvas.style.border = "1px solid #ddd";
     container.appendChild(matCanvas);

@@ -15,6 +15,7 @@ export default {
     container.style.gap = "12px";
     container.style.alignItems = "flex-start";
     container.style.justifyContent = "center";
+    container.style.flexWrap = "wrap";  // stack instead of overflow on narrow screens
     el.appendChild(container);
 
     const WIDTH = 500;
@@ -33,6 +34,8 @@ export default {
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(WIDTH, HEIGHT);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.domElement.style.maxWidth = "100%";
+    renderer.domElement.style.height = "auto";
     container.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -128,7 +131,8 @@ export default {
     sigCanvas.width = SIG_WIDTH * 2;
     sigCanvas.height = SIG_HEIGHT * 2;
     sigCanvas.style.width = SIG_WIDTH + "px";
-    sigCanvas.style.height = SIG_HEIGHT + "px";
+    sigCanvas.style.maxWidth = "100%";
+    sigCanvas.style.height = "auto";
     sigCanvas.style.borderRadius = "6px";
     sigCanvas.style.border = "1px solid #ddd";
     container.appendChild(sigCanvas);
@@ -329,22 +333,24 @@ export default {
         ctx.fillStyle = "#fff";
         ctx.fill();
 
-        // Label below
+        // Label below the gauge (full width, clear of the arc)
         ctx.fillStyle = "#aaa";
         ctx.font = "11px Arial";
         ctx.textAlign = "center";
-        ctx.fillText(label, cx, cy + radius * 0.35);
+        ctx.fillText(label, cx, cy + radius + 12);
 
-        // Digital readout
+        // Digital readout below the label
         ctx.fillStyle = valueColor;
-        ctx.font = "bold 16px monospace";
-        ctx.fillText(value.toFixed(3), cx, cy + radius * 0.55);
+        ctx.font = "bold 15px monospace";
+        ctx.fillText(value.toFixed(3), cx, cy + radius + 30);
 
         ctx.textAlign = "left";
       }
 
       // --- |Mxy| meter (left) ---
-      const meterRadius = 55;
+      // radius kept small enough that the two gauges (centered at 0.3w / 0.7w,
+      // 112px apart in a 280px panel) don't overlap each other or their labels.
+      const meterRadius = 42;
       const meterY = pad + 22 + meterRadius + 10;
       drawMeter(w * 0.3, meterY, meterRadius, curMxy, 0, 1, "|Mxy| (signal)", "#ff6b6b", "#ff4444");
 
@@ -353,7 +359,8 @@ export default {
 
       // --- Oscilloscope: Mx (coil signal) ---
       const barW = w - pad * 2;
-      const scopeTop = meterY + meterRadius * 0.7 + 10;
+      // Start the scope below the gauges + their label/value rows (radius + ~44).
+      const scopeTop = meterY + meterRadius + 44;
       const scopeH = h - scopeTop - 35;
       const scopeW = barW;
 
