@@ -83,3 +83,22 @@ def render_readme_configs(dataset: dict) -> str:
         lines.append("      - split: train")
         lines.append(f"        path: {target}")
     return "\n".join(lines) + "\n"
+
+
+def replace_configs_block(readme_text: str, configs_yaml: str) -> str:
+    """Replace the frontmatter `configs:` block in a README with *configs_yaml*.
+
+    Strips only the existing `configs:` block (it and its indented child
+    lines), preserving every other top-level frontmatter key, then appends
+    the new block at the end of the frontmatter.
+    """
+    m = re.match(r"^---\n(.*?)\n---\n(.*)$", readme_text, flags=re.DOTALL)
+    if not m:
+        raise ValueError("README has no YAML frontmatter")
+    front, body = m.group(1), m.group(2)
+    # Drop the existing configs: block: the `configs:` line plus following
+    # indented lines only. `[^\n]` (not `.` under DOTALL) stops each repeat
+    # at its own newline, so a sibling top-level key (column 0) ends the run.
+    front = re.sub(r"(?m)^configs:\n(?:[ \t]+[^\n]*\n?)*", "", front)
+    front = front.rstrip("\n") + "\n" + configs_yaml.rstrip("\n") + "\n"
+    return f"---\n{front}---\n{body}"

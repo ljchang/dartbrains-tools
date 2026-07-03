@@ -4,6 +4,7 @@ from hf_configs.index import (
     build_index,
     glob_to_regex,
     render_readme_configs,
+    replace_configs_block,
     rows_to_csv,
 )
 from hf_configs.labels import extract_beta_labels, parse_bids_entities
@@ -106,3 +107,29 @@ def test_all_three_share_the_fmriprep_globs():
         for repo in DATASETS
     }
     assert len(set(globs.values())) == 1  # identical bold glob everywhere
+
+
+def test_replace_configs_block_preserves_sibling_keys():
+    from hf_configs.index import replace_configs_block
+
+    readme = (
+        "---\n"
+        "license: cc-by-nc-4.0\n"
+        "configs:\n"
+        "  - config_name: old\n"
+        "    data_files:\n"
+        "      - split: train\n"
+        "        path: old.csv\n"
+        "pretty_name: Foo\n"
+        "size_categories:\n"
+        "  - 1K<n<10K\n"
+        "---\n"
+        "# Body\n"
+    )
+    out = replace_configs_block(readme, "configs:\n  - config_name: new\n")
+    assert "pretty_name: Foo" in out          # sibling AFTER configs survives
+    assert "size_categories" in out
+    assert "license: cc-by-nc-4.0" in out      # sibling BEFORE configs survives
+    assert "config_name: old" not in out       # old block gone
+    assert "config_name: new" in out           # new block present
+    assert out.endswith("# Body\n")            # body untouched

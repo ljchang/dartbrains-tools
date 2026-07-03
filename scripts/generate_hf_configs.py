@@ -13,7 +13,12 @@ import argparse
 import sys
 
 from hf_configs import hub
-from hf_configs.index import build_index, render_readme_configs, rows_to_csv
+from hf_configs.index import (
+    build_index,
+    render_readme_configs,
+    replace_configs_block,
+    rows_to_csv,
+)
 from hf_configs.specs import DATASETS
 
 
@@ -47,19 +52,8 @@ def _tsv_to_csv(text: str) -> str:
 
 
 def _rewrite_readme(repo: str, configs_yaml: str) -> str:
-    """Replace the frontmatter `configs:` block in the repo README with *configs_yaml*."""
-    readme = hub.read_text(repo, "README.md")
-    import re
-
-    # Frontmatter is delimited by the first two `---` lines.
-    m = re.match(r"^---\n(.*?)\n---\n(.*)$", readme, flags=re.DOTALL)
-    if not m:
-        raise ValueError(f"{repo} README has no YAML frontmatter")
-    front, body = m.group(1), m.group(2)
-    # Drop any existing configs: block (until the next top-level key or end).
-    front = re.sub(r"(?ms)^configs:\n(?:[ \t]+.*\n?)*", "", front)
-    front = front.rstrip("\n") + "\n" + configs_yaml.rstrip("\n") + "\n"
-    return f"---\n{front}---\n{body}"
+    """Replace the frontmatter `configs:` block in the repo README."""
+    return replace_configs_block(hub.read_text(repo, "README.md"), configs_yaml)
 
 
 def cmd_index(args):
