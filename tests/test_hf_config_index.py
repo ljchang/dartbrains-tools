@@ -75,3 +75,34 @@ def test_render_readme_configs_marks_default_and_points_at_csv():
     assert "default: true" in yaml
     # exactly one default
     assert yaml.count("default: true") == 1
+
+
+def test_specs_cover_expected_configs():
+    from hf_configs.specs import DATASETS
+
+    assert set(DATASETS) == {
+        "dartbrains/localizer",
+        "dartbrains/sherlock",
+        "dartbrains/paranoia",
+    }
+    loc = DATASETS["dartbrains/localizer"]["configs"]
+    assert set(loc) == {"bold", "confounds", "mask", "events", "betas", "participants"}
+    assert set(DATASETS["dartbrains/sherlock"]["configs"]) == {
+        "bold", "confounds", "mask", "onsets",
+    }
+    assert set(DATASETS["dartbrains/paranoia"]["configs"]) == {
+        "bold", "confounds", "mask", "participants",
+    }
+    # participants is a content config; bold is an index config
+    assert "content" in loc["participants"]
+    assert "glob" in loc["bold"]
+
+
+def test_all_three_share_the_fmriprep_globs():
+    from hf_configs.specs import DATASETS
+
+    globs = {
+        repo: DATASETS[repo]["configs"]["bold"]["glob"]
+        for repo in DATASETS
+    }
+    assert len(set(globs.values())) == 1  # identical bold glob everywhere
