@@ -28,7 +28,7 @@ def test_get_file_bold(monkeypatch):
     monkeypatch.setattr(paranoia, "_download", lambda f: captured.setdefault("f", f))
     paranoia.get_file("sub-tb2994", run=1, suffix="bold")
     assert captured["f"] == (
-        "fmriprep/sub-tb2994/func/"
+        "derivatives/fmriprep/sub-tb2994/func/"
         "sub-tb2994_task-story_run-1_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz"
     )
 
@@ -38,7 +38,7 @@ def test_get_file_bold_denoised_smoothed(monkeypatch):
     monkeypatch.setattr(paranoia, "_download", lambda f: captured.setdefault("f", f))
     paranoia.get_file("sub-tb2994", run=2, suffix="bold", denoised=True, smoothed=True)
     assert captured["f"] == (
-        "fmriprep/sub-tb2994/func/"
+        "derivatives/fmriprep/sub-tb2994/func/"
         "sub-tb2994_denoise_smooth6mm_task-story_run-2_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz"
     )
 
@@ -48,7 +48,7 @@ def test_get_file_confounds(monkeypatch):
     monkeypatch.setattr(paranoia, "_download", lambda f: captured.setdefault("f", f))
     paranoia.get_file("sub-tb2994", run=3, suffix="confounds")
     assert captured["f"] == (
-        "fmriprep/sub-tb2994/func/sub-tb2994_task-story_run-3_desc-confounds_regressors.tsv"
+        "derivatives/fmriprep/sub-tb2994/func/sub-tb2994_task-story_run-3_desc-confounds_regressors.tsv"
     )
 
 

@@ -86,8 +86,8 @@ def get_file(
         raise ValueError(f"Unknown task: {task!r}. Use one of {TASKS}.")
 
     sub = subject
-    func = f"fmriprep/{sub}/func"
-    anat = f"fmriprep/{sub}/anat"
+    func = f"derivatives/fmriprep/{sub}/func"
+    anat = f"derivatives/fmriprep/{sub}/anat"
 
     if suffix == "T1w":
         filename = f"{anat}/{sub}_space-{_SPACE}_desc-preproc_T1w{extension}"
@@ -136,7 +136,7 @@ def load_roi_timeseries(subject: str, part: int) -> pd.DataFrame:
     """Download and load the 50-ROI average timeseries CSV for (subject, part)."""
     if part not in (1, 2):
         raise ValueError("part must be 1 or 2 (Sherlock has two viewing runs).")
-    filename = f"fmriprep/{subject}/func/{subject}_Part{part}_Average_ROI_n50.csv"
+    filename = f"derivatives/fmriprep/{subject}/func/{subject}_Part{part}_Average_ROI_n50.csv"
     return pd.read_csv(_download(filename))
 
 

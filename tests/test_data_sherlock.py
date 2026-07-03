@@ -25,7 +25,7 @@ def test_get_file_bold_default(monkeypatch):
     monkeypatch.setattr(sherlock, "_download", lambda f: captured.setdefault("f", f))
     sherlock.get_file("sub-01", task="sherlockPart1", suffix="bold")
     assert captured["f"] == (
-        "fmriprep/sub-01/func/"
+        "derivatives/fmriprep/sub-01/func/"
         "sub-01_task-sherlockPart1_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz"
     )
 
@@ -42,7 +42,7 @@ def test_get_file_bold_denoised_cropped_smoothed(monkeypatch):
         smoothed=True,
     )
     assert captured["f"] == (
-        "fmriprep/sub-01/func/"
+        "derivatives/fmriprep/sub-01/func/"
         "sub-01_denoise_crop_smooth6mm_task-sherlockPart1_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz"
     )
 
@@ -52,7 +52,7 @@ def test_get_file_confounds(monkeypatch):
     monkeypatch.setattr(sherlock, "_download", lambda f: captured.setdefault("f", f))
     sherlock.get_file("sub-01", task="sherlockPart1", suffix="confounds")
     assert captured["f"] == (
-        "fmriprep/sub-01/func/sub-01_task-sherlockPart1_desc-confounds_regressors.tsv"
+        "derivatives/fmriprep/sub-01/func/sub-01_task-sherlockPart1_desc-confounds_regressors.tsv"
     )
 
 
@@ -61,7 +61,7 @@ def test_get_file_mask(monkeypatch):
     monkeypatch.setattr(sherlock, "_download", lambda f: captured.setdefault("f", f))
     sherlock.get_file("sub-01", task="sherlockPart1", suffix="mask")
     assert captured["f"] == (
-        "fmriprep/sub-01/func/"
+        "derivatives/fmriprep/sub-01/func/"
         "sub-01_task-sherlockPart1_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz"
     )
 
@@ -71,7 +71,7 @@ def test_get_file_t1w_ignores_task(monkeypatch):
     monkeypatch.setattr(sherlock, "_download", lambda f: captured.setdefault("f", f))
     sherlock.get_file("sub-01", task="sherlockPart1", suffix="T1w")
     assert captured["f"] == (
-        "fmriprep/sub-01/anat/sub-01_space-MNI152NLin2009cAsym_desc-preproc_T1w.nii.gz"
+        "derivatives/fmriprep/sub-01/anat/sub-01_space-MNI152NLin2009cAsym_desc-preproc_T1w.nii.gz"
     )
 
 

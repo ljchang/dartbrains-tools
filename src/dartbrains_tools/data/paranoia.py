@@ -85,8 +85,8 @@ def get_file(
         raise ValueError(f"Unknown run: {run!r}. Use one of {list(RUNS)}.")
 
     sub = subject
-    func = f"fmriprep/{sub}/func"
-    anat = f"fmriprep/{sub}/anat"
+    func = f"derivatives/fmriprep/{sub}/func"
+    anat = f"derivatives/fmriprep/{sub}/anat"
 
     if suffix == "T1w":
         filename = f"{anat}/{sub}_space-{_SPACE}_desc-preproc_T1w{extension}"
@@ -135,7 +135,7 @@ def load_transcript(story: int) -> str:
 
 def load_roi_timeseries(subject: str, run: int) -> pd.DataFrame:
     """Download and load the node-timeseries CSV for (subject, run)."""
-    filename = f"fmriprep/{subject}/func/{subject}_run-{run}_nodeTimeSeries.csv"
+    filename = f"derivatives/fmriprep/{subject}/func/{subject}_run-{run}_nodeTimeSeries.csv"
     return pd.read_csv(_download(filename))
 
 
