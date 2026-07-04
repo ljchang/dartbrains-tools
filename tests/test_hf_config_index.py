@@ -7,7 +7,7 @@ from hf_configs.index import (
     replace_configs_block,
     rows_to_csv,
 )
-from hf_configs.labels import extract_beta_labels, parse_bids_entities
+from hf_configs.labels import extract_beta_labels
 
 FILES = [
     "derivatives/fmriprep/sub-S01/func/sub-S01_task-localizer_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz",
@@ -110,8 +110,6 @@ def test_all_three_share_the_fmriprep_globs():
 
 
 def test_replace_configs_block_tolerates_crlf():
-    from hf_configs.index import replace_configs_block
-
     readme = "---\r\nlicense: x\r\nconfigs:\r\n  - config_name: old\r\n---\r\n# Body\r\n"
     out = replace_configs_block(readme, "configs:\n  - config_name: new\n")
     assert "license: x" in out
@@ -120,8 +118,6 @@ def test_replace_configs_block_tolerates_crlf():
 
 
 def test_replace_configs_block_preserves_sibling_keys():
-    from hf_configs.index import replace_configs_block
-
     readme = (
         "---\n"
         "license: cc-by-nc-4.0\n"

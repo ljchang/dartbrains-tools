@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import io
 import csv as _csv
+import io
 import re
 
 from .labels import parse_bids_entities
