@@ -37,7 +37,10 @@ reproduced, and exactly the work a student cannot get back. The cache lives in
 its own mount at :data:`CACHE_MOUNT` and is flushed through
 ``IDBFS.syncfs(mount, ...)`` rather than the global ``FS.syncfs``, so our
 writes can never reconcile the notebook tree. The same staleness still applies
-*within* our mount, where the worst case is that someone re-downloads a file.
+*within* our mount, where the worst case is that someone re-downloads a file --
+so flushes are kept to writes, never plain cache hits, and new files stay out
+of the mount until its own populate (a reconcile in the other direction) has
+landed.
 
 **The payload never becomes a Python ``bytes``.** The response arrives as a JS
 ``ArrayBuffer`` and goes straight to ``FS.writeFile``. Reading it through
@@ -131,7 +134,7 @@ def active() -> bool:
 
 
 def cache_root() -> str:
-    """The directory cached files live in.
+    """Where cached files are kept: the persistent mount when there is one.
 
     Without a working IDBFS mount (bare Pyodide, a browser refusing IndexedDB)
     the cache degrades to kernel-local memory: still useful within one session,
@@ -146,11 +149,12 @@ def download(repo_id: str, filename: str) -> str:
     A hit costs nothing; a miss downloads the file, makes room for it if the
     budget requires, and schedules the write to IndexedDB.
     """
-    root = cache_root()
-    dest = os.path.join(root, repo_id, filename)
-    if os.path.exists(dest):
-        _note_use(dest)
-        return dest
+    _report_sync_error()
+
+    hit = _find_existing(repo_id, filename)
+    if hit is not None:
+        _note_use(hit)
+        return hit
 
     # `quote` so a filename carrying `#`, `?` or a space addresses the path it
     # names rather than a truncated one -- hf_hub_download escapes these too.
@@ -158,8 +162,9 @@ def download(repo_id: str, filename: str) -> str:
     buf = _fetch(url)
     size = buf.length
 
+    root = _writable_root()
     budget = _budget_bytes()
-    if budget and size > budget:
+    if root == CACHE_MOUNT and budget and size > budget:
         # Evicting the whole cache still would not make this fit. Keep it for
         # this kernel only rather than clearing everything else for nothing.
         warnings.warn(
@@ -168,13 +173,16 @@ def download(repo_id: str, filename: str) -> str:
             f"session only. Raise DARTBRAINS_WASM_CACHE_MB to cache it.",
             stacklevel=2,
         )
-        session_dest = os.path.join(SESSION_ROOT, repo_id, filename)
-        _write(session_dest, buf)
-        return session_dest
+        root = SESSION_ROOT
+    elif root == CACHE_MOUNT:
+        _make_room(size)
 
-    _make_room(size)
+    dest = os.path.join(root, repo_id, filename)
     _write(dest, buf)
-    _note_use(dest)
+    if root == CACHE_MOUNT:
+        _note_use(dest)
+        _save_lru()
+        persist()
     return dest
 
 
@@ -183,12 +191,10 @@ def persist() -> None:
 
     ``syncfs`` is asynchronous and we are called from synchronous notebook code,
     so this fires and forgets: the copy runs on the event loop once the cell
-    returns. Overlapping calls would interleave their IndexedDB transactions, so
-    a request arriving mid-flight is deferred to a single follow-up sync.
-
-    Only :data:`CACHE_MOUNT` is synced. The global ``FS.syncfs`` would reconcile
-    every IDBFS mount, including marimo's -- which is how a cache write could
-    delete a notebook saved by another tab.
+    returns. Two ``syncfs`` calls must never be outstanding on the same mount at
+    once -- they would reconcile against each other's half-applied state -- so a
+    request arriving while one is in flight (including the populate at mount
+    time) is deferred to a single follow-up sync.
     """
     global _sync_running, _sync_queued
 
@@ -214,13 +220,17 @@ def last_sync_error() -> str | None:
 def _ensure_mount() -> bool:
     """Mount the cache's own IDBFS once, and start populating it.
 
-    The populate is asynchronous and cannot be awaited from notebook code, so a
-    ``download`` arriving before it lands simply misses and re-downloads. That
-    is why mounting happens at import rather than at first use: marimo runs a
-    notebook's imports in an earlier cell than its data loading, and the event
-    loop turns in between.
+    The populate is asynchronous and cannot be awaited from synchronous notebook
+    code, which is why mounting happens at import: marimo runs a notebook's
+    imports in an earlier cell than its data loading, and the event loop turns
+    in between. But that is an assumption about marimo's runner, not something
+    this module can enforce -- so until the populate lands, :func:`_writable_root`
+    keeps new files out of this mount. A populate is a reconcile in the other
+    direction: it deletes local entries that IndexedDB does not have, which
+    would otherwise take a file that had just been downloaded and leave a later
+    cell reading a path that no longer exists.
     """
-    global _mount_state
+    global _mount_state, _sync_running
 
     if _mount_state in ("ready", "populating"):
         return True
@@ -232,21 +242,44 @@ def _ensure_mount() -> bool:
         import pyodide_js
         from pyodide.ffi import to_js
 
-        os.makedirs(CACHE_MOUNT, exist_ok=True)
         fs = pyodide_js.FS
-        fs.mount(
-            fs.filesystems.IDBFS,
-            to_js({"root": "."}, dict_converter=js.Object.fromEntries),
-            CACHE_MOUNT,
-        )
-    except Exception:  # noqa: BLE001 - no IndexedDB, or already mounted elsewhere
+        os.makedirs(CACHE_MOUNT, exist_ok=True)
+        try:
+            fs.mount(
+                fs.filesystems.IDBFS,
+                to_js({"root": "."}, dict_converter=js.Object.fromEntries),
+                CACHE_MOUNT,
+            )
+        except Exception:
+            # Most likely EBUSY: something already mounted here (a reimport
+            # after `sys.modules` was cleared). An existing mount is a working
+            # cache, not a reason to fall back to kernel memory and leave a
+            # multi-gigabyte cache invisible.
+            if not _is_mounted():
+                raise
+            _mount_state = "ready"
+            _load_lru()
+            return True
+    except Exception:  # noqa: BLE001 - no IndexedDB at all
         _mount_state = "unavailable"
         return False
 
     _mount_state = "populating"
+    _sync_running = True  # the populate occupies the mount like any other sync
     if not _idbfs_syncfs(populate=True, on_done=_on_populated):
+        _sync_running = False
         _mount_state = "ready"  # nothing to populate from; writes still work
+        _load_lru()
     return True
+
+
+def _is_mounted() -> bool:
+    try:
+        import pyodide_js
+
+        return pyodide_js.FS.lookupPath(CACHE_MOUNT).node.mount is not None
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def _idbfs_syncfs(*, populate: bool, on_done) -> bool:
@@ -275,28 +308,73 @@ def _sync_failed(err) -> bool:
 
 
 def _on_populated(err=None) -> None:
-    global _mount_state
+    global _mount_state, _sync_running, _sync_queued
+
     _mount_state = "ready"
-    if not _sync_failed(err):
-        _load_lru()
+    _sync_running = False
+    _load_lru()  # also on failure: an empty index would clobber the sidecar
+    if _sync_queued:
+        _sync_queued = False
+        persist()
 
 
 def _on_synced(err=None) -> None:
     global _sync_running, _sync_queued, _last_sync_error
+
     _sync_running = False
     if _sync_failed(err):
         # Most likely QuotaExceededError -- the case the budget exists to avoid.
-        # Surface it: silently dropping it means re-downloading every visit with
-        # no indication why.
+        # Recorded rather than warned from here: this runs on the event loop,
+        # outside any cell, where a warning reaches the browser console and not
+        # the reader. `_report_sync_error` raises it from the next `download`,
+        # which does run in a cell.
         _last_sync_error = str(err)
-        warnings.warn(
-            f"could not persist the dataset cache to IndexedDB ({err}); "
-            f"data will be re-downloaded next visit",
-            stacklevel=2,
-        )
     if _sync_queued:
         _sync_queued = False
         persist()
+
+
+def _report_sync_error() -> None:
+    """Surface a failed flush from cell context, where the reader can see it."""
+    global _last_sync_error
+
+    if _last_sync_error is None:
+        return
+    err, _last_sync_error = _last_sync_error, None
+    warnings.warn(
+        f"could not persist the dataset cache to IndexedDB ({err}); data will "
+        f"be downloaded again next visit",
+        stacklevel=3,
+    )
+
+
+# --- choosing a location ------------------------------------------------------
+
+
+def _writable_root() -> str:
+    """Where a *new* file may be written.
+
+    Only a fully populated mount may take writes. While the populate is in
+    flight, its reconcile would delete anything written in the meantime, so new
+    files go to kernel-local storage instead -- a slower next visit rather than
+    a file vanishing under a cell that is about to read it.
+    """
+    if _ensure_mount() and _mount_state == "ready":
+        return CACHE_MOUNT
+    return SESSION_ROOT
+
+
+def _find_existing(repo_id: str, filename: str) -> str | None:
+    """A cached copy in either root, or ``None``.
+
+    Both are checked because a file can legitimately live in either: too large
+    for the budget, or downloaded while the mount was still populating.
+    """
+    for root in (CACHE_MOUNT, SESSION_ROOT):
+        candidate = os.path.join(root, repo_id, filename)
+        if os.path.exists(candidate):
+            return candidate
+    return None
 
 
 # --- reading and writing ------------------------------------------------------
@@ -342,33 +420,60 @@ def _lru_path() -> str:
     return os.path.join(CACHE_MOUNT, LRU_FILE)
 
 
-def _load_lru() -> None:
-    global _lru
+def _read_lru() -> dict[str, float]:
     try:
         with open(_lru_path()) as fh:
             loaded = json.load(fh)
-        if isinstance(loaded, dict):
-            _lru = {k: float(v) for k, v in loaded.items()}
     except (OSError, ValueError):
-        _lru = {}
+        return {}
+    if not isinstance(loaded, dict):
+        return {}
+    out = {}
+    for key, value in loaded.items():
+        try:
+            out[str(key)] = float(value)
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def _load_lru() -> None:
+    global _lru
+    _lru = _read_lru()
 
 
 def _note_use(dest: str) -> None:
-    """Record that ``dest`` was used, and schedule a flush.
+    """Record in memory that ``dest`` was used.
 
     Recency is kept in a small sidecar rather than the file's mtime: IDBFS
     decides what to copy by comparing timestamps, so touching a 107 MB file
     would rewrite all 107 MB into IndexedDB on every cache *hit*.
+
+    Nothing is flushed here. A flush reconciles the whole mount against the
+    snapshot this kernel booted with, so flushing on a plain cache hit would let
+    a stale tab delete a file a newer tab had cached. Recency only decides what
+    to evict, which happens when writing -- so the sidecar is saved then.
     """
     if not dest.startswith(CACHE_MOUNT):
         return
     _lru[os.path.relpath(dest, CACHE_MOUNT)] = time.time()
+
+
+def _save_lru() -> None:
+    """Merge our recency into the sidecar on disk and write it back.
+
+    Merged rather than overwritten: another tab may have recorded uses this
+    kernel never saw, and clobbering them would send eviction back to the mtime
+    ordering the sidecar exists to replace.
+    """
+    merged = _read_lru()
+    merged.update(_lru)
     try:
         with open(_lru_path(), "w") as fh:
-            json.dump(_lru, fh)
+            json.dump(merged, fh)
     except OSError:
         return
-    persist()
+    _lru.update(merged)
 
 
 def _budget_bytes() -> int:
@@ -385,9 +490,9 @@ def _cached_files() -> list[tuple[float, int, str]]:
     found = []
     for dirpath, _dirnames, filenames in os.walk(root):
         for name in filenames:
-            path = os.path.join(dirpath, name)
             if name == LRU_FILE:
                 continue
+            path = os.path.join(dirpath, name)
             try:
                 st = os.stat(path)
             except OSError:

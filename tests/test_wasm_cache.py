@@ -8,6 +8,7 @@ saved notebooks out of the origin's storage.
 
 from __future__ import annotations
 
+import json
 import os
 
 import pytest
@@ -175,7 +176,6 @@ def test_recency_is_tracked_without_touching_the_cached_file(tmp_path, monkeypat
     """Bumping a 107 MB file's mtime would make the next reconcile copy all
     107 MB into IndexedDB again, on every cache *hit*."""
     monkeypatch.setattr(_wasm_cache, "CACHE_MOUNT", str(tmp_path))
-    monkeypatch.setattr(_wasm_cache, "persist", lambda: None)
     monkeypatch.setattr(_wasm_cache, "_lru", {})
     big = tmp_path / "big.nii.gz"
     big.write_bytes(b"\0" * 2048)
@@ -185,7 +185,6 @@ def test_recency_is_tracked_without_touching_the_cached_file(tmp_path, monkeypat
 
     assert big.stat().st_mtime == before
     assert "big.nii.gz" in _wasm_cache._lru
-    assert (tmp_path / _wasm_cache.LRU_FILE).exists()
 
 
 def test_eviction_order_follows_the_sidecar_not_mtime(tmp_path, monkeypatch):
@@ -209,18 +208,23 @@ def test_the_lru_sidecar_is_never_itself_evicted(tmp_path, monkeypatch):
     assert [os.path.basename(p) for _u, _s, p in _wasm_cache._cached_files()] == ["data.bin"]
 
 
-def test_a_failed_sync_is_surfaced_not_swallowed(monkeypatch):
-    """A QuotaExceededError is the case the budget exists to prevent; dropping
-    it silently means re-downloading every visit with no signal."""
+def test_a_failed_sync_is_recorded_then_reported_from_a_cell(monkeypatch):
+    """A QuotaExceededError is the case the budget exists to prevent. The
+    callback runs on the event loop, outside any cell, where a warning reaches
+    the browser console and not the reader -- so it is recorded there and
+    raised from the next `download`, which does run in a cell."""
     monkeypatch.setattr(_wasm_cache, "_sync_running", True)
     monkeypatch.setattr(_wasm_cache, "_sync_queued", False)
     monkeypatch.setattr(_wasm_cache, "_last_sync_error", None)
 
-    with pytest.warns(UserWarning, match="could not persist"):
-        _wasm_cache._on_synced("QuotaExceededError")
-
+    _wasm_cache._on_synced("QuotaExceededError")
     assert _wasm_cache.last_sync_error() == "QuotaExceededError"
     assert _wasm_cache._sync_running is False
+
+    with pytest.warns(UserWarning, match="could not persist"):
+        _wasm_cache._report_sync_error()
+
+    assert _wasm_cache.last_sync_error() is None, "must not warn on every later call"
 
 
 def test_a_successful_sync_records_no_error(monkeypatch):
@@ -277,8 +281,154 @@ def test_jsnull_from_a_successful_syncfs_is_not_an_error():
     assert _wasm_cache._sync_failed("QuotaExceededError")
 
 
-def test_a_successful_sync_does_not_warn(monkeypatch, recwarn):
+def test_a_successful_sync_records_nothing_to_report(monkeypatch):
     monkeypatch.setattr(_wasm_cache, "_sync_running", True)
     monkeypatch.setattr(_wasm_cache, "_sync_queued", False)
+    monkeypatch.setattr(_wasm_cache, "_last_sync_error", None)
     _wasm_cache._on_synced(None)
-    assert not [w for w in recwarn if "could not persist" in str(w.message)]
+    assert _wasm_cache.last_sync_error() is None
+
+
+# --- the bugs the second review found -----------------------------------------
+
+
+@pytest.fixture
+def cache_dirs(tmp_path, monkeypatch):
+    """Both roots on disk, with the mount reported as ready."""
+    mount, session = tmp_path / "mount", tmp_path / "session"
+    mount.mkdir()
+    session.mkdir()
+    monkeypatch.setattr(_wasm_cache, "CACHE_MOUNT", str(mount))
+    monkeypatch.setattr(_wasm_cache, "SESSION_ROOT", str(session))
+    monkeypatch.setattr(_wasm_cache, "_mount_state", "ready")
+    monkeypatch.setattr(_wasm_cache, "_ensure_mount", lambda: True)
+    monkeypatch.setattr(_wasm_cache, "_lru", {})
+    return mount, session
+
+
+def _stub_download(monkeypatch, size, fetches):
+    def fetch(url):
+        fetches.append(url)
+        return _FakeBuf(size)
+
+    def write(dest, buf):
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        with open(dest, "wb") as fh:
+            fh.write(b"\0" * buf.length)
+
+    monkeypatch.setattr(_wasm_cache, "_fetch", fetch)
+    monkeypatch.setattr(_wasm_cache, "_write", write)
+    monkeypatch.setattr(_wasm_cache, "persist", lambda: None)
+
+
+def test_an_over_budget_file_is_not_re_downloaded_every_call(cache_dirs, monkeypatch):
+    """It is written outside the mount, so the hit check has to look there too
+    -- otherwise every cell calling get_file re-fetches the whole thing."""
+    monkeypatch.setenv("DARTBRAINS_WASM_CACHE_MB", "1")
+    fetches = []
+    _stub_download(monkeypatch, 4 * 1024 * 1024, fetches)
+
+    with pytest.warns(UserWarning, match="exceeds the"):
+        first = _wasm_cache.download("repo/x", "huge.nii.gz")
+    second = _wasm_cache.download("repo/x", "huge.nii.gz")
+
+    assert first == second
+    assert len(fetches) == 1, "the second call must hit the file already on disk"
+
+
+def test_nothing_is_written_into_the_mount_while_it_populates(cache_dirs, monkeypatch):
+    """A populate is a reconcile in the other direction: it deletes local
+    entries IndexedDB lacks. A file written mid-populate would vanish under the
+    cell about to read it."""
+    mount, session = cache_dirs
+    monkeypatch.setattr(_wasm_cache, "_mount_state", "populating")
+    fetches = []
+    _stub_download(monkeypatch, 1024, fetches)
+
+    dest = _wasm_cache.download("repo/x", "a.nii.gz")
+
+    assert dest.startswith(str(session))
+    assert not (mount / "repo/x/a.nii.gz").exists()
+
+
+def test_a_file_cached_during_populate_is_found_afterwards(cache_dirs, monkeypatch):
+    mount, session = cache_dirs
+    monkeypatch.setattr(_wasm_cache, "_mount_state", "populating")
+    fetches = []
+    _stub_download(monkeypatch, 1024, fetches)
+    _wasm_cache.download("repo/x", "a.nii.gz")
+
+    monkeypatch.setattr(_wasm_cache, "_mount_state", "ready")
+    again = _wasm_cache.download("repo/x", "a.nii.gz")
+
+    assert again.startswith(str(session))
+    assert len(fetches) == 1
+
+
+def test_persist_does_not_dispatch_alongside_an_in_flight_populate(monkeypatch):
+    """Two syncfs calls outstanding on one mount reconcile against each other's
+    half-applied state; the store-sync can empty the persisted cache."""
+    dispatched = []
+    monkeypatch.setattr(_wasm_cache, "_ensure_mount", lambda: True)
+    monkeypatch.setattr(
+        _wasm_cache,
+        "_idbfs_syncfs",
+        lambda *, populate, on_done: dispatched.append(populate) or True,
+    )
+    # The state _ensure_mount leaves behind while the populate is in flight.
+    monkeypatch.setattr(_wasm_cache, "_mount_state", "populating")
+    monkeypatch.setattr(_wasm_cache, "_sync_running", True)
+    monkeypatch.setattr(_wasm_cache, "_sync_queued", False)
+
+    _wasm_cache.persist()
+
+    assert dispatched == [], "persist must not dispatch alongside the populate"
+    assert _wasm_cache._sync_queued is True, "and must not silently drop the flush"
+
+
+def test_a_queued_persist_survives_the_populate(monkeypatch):
+    calls = []
+    monkeypatch.setattr(_wasm_cache, "_sync_running", True)
+    monkeypatch.setattr(_wasm_cache, "_sync_queued", True)
+    monkeypatch.setattr(_wasm_cache, "_lru", {})
+    monkeypatch.setattr(_wasm_cache, "_load_lru", lambda: None)
+    monkeypatch.setattr(_wasm_cache, "persist", lambda: calls.append("persist"))
+
+    _wasm_cache._on_populated(None)
+
+    assert calls == ["persist"], "the deferred flush must not be dropped"
+    assert _wasm_cache._sync_running is False
+
+
+def test_a_cache_hit_does_not_flush(cache_dirs, monkeypatch):
+    """Flushing reconciles the whole mount against this kernel's boot snapshot,
+    so flushing on a read lets a stale tab delete a newer tab's cached file."""
+    mount, _session = cache_dirs
+    target = mount / "repo/x/a.nii.gz"
+    target.parent.mkdir(parents=True)
+    target.write_bytes(b"\0" * 16)
+    flushes = []
+    monkeypatch.setattr(_wasm_cache, "persist", lambda: flushes.append(1))
+
+    _wasm_cache.download("repo/x", "a.nii.gz")
+
+    assert flushes == []
+
+
+def test_saving_recency_merges_rather_than_clobbers(cache_dirs, monkeypatch):
+    """Another tab may have recorded uses this kernel never saw; dropping them
+    sends eviction back to the mtime ordering the sidecar replaces."""
+    mount, _session = cache_dirs
+    (mount / _wasm_cache.LRU_FILE).write_text('{"other-tab.nii.gz": 111.0}')
+    monkeypatch.setattr(_wasm_cache, "_lru", {"mine.nii.gz": 222.0})
+
+    _wasm_cache._save_lru()
+
+    on_disk = json.loads((mount / _wasm_cache.LRU_FILE).read_text())
+    assert on_disk == {"other-tab.nii.gz": 111.0, "mine.nii.gz": 222.0}
+
+
+def test_a_corrupt_sidecar_is_ignored_not_fatal(cache_dirs):
+    mount, _session = cache_dirs
+    (mount / _wasm_cache.LRU_FILE).write_text("not json at all")
+    assert _wasm_cache._read_lru() == {}
