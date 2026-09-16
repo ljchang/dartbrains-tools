@@ -22,6 +22,26 @@ def test_youtube_embeds_iframe_with_video_id():
     assert "youtube.com/embed" in html
 
 
+@requires_marimo
+def test_youtube_sets_referrerpolicy():
+    """The embed must carry its own ``referrerpolicy``.
+
+    marimo's server responds with ``Referrer-Policy: same-origin``, which sends
+    no ``Referer`` at all on cross-origin requests. YouTube's player uses that
+    header to identify the embedding site, and without it refuses to play with
+    "Error 153: Video player configuration error". An iframe-level
+    ``referrerpolicy`` overrides the document policy for that request, so the
+    origin — and only the origin — reaches YouTube.
+
+    Verified in a browser against a page serving ``Referrer-Policy:
+    same-origin``: without the attribute the player shows Error 153; with it the
+    video plays.
+    """
+    out = youtube("dQw4w9WgXcQ")
+    html = out.text if hasattr(out, "text") else str(out)
+    assert 'referrerpolicy="strict-origin-when-cross-origin"' in html
+
+
 def test_plot_timeseries_1d_returns_single_trace_figure():
     fig = plot_timeseries(np.arange(20))
     # plotly Figure with a single Scatter trace

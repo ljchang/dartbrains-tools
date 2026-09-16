@@ -18,13 +18,22 @@ def youtube(video_id: str):
     Usage:
         from dartbrains_tools.notebook_utils import youtube
         youtube("dQw4w9WgXcQ")
+
+    The explicit ``referrerpolicy`` is required, not cosmetic. marimo's server
+    responds with ``Referrer-Policy: same-origin``, which sends no ``Referer``
+    at all on cross-origin requests. YouTube's player uses that header to
+    identify the embedding site and, without it, refuses to play with
+    "Error 153: Video player configuration error". An iframe-level
+    ``referrerpolicy`` overrides the document policy for that one request, so
+    the origin — and only the origin — reaches YouTube.
     """
     import marimo as mo
 
     return mo.Html(
         f'<iframe width="560" height="315" '
         f'src="https://www.youtube.com/embed/{video_id}" '
-        f'frameborder="0" allowfullscreen></iframe>'
+        f'frameborder="0" allowfullscreen '
+        f'referrerpolicy="strict-origin-when-cross-origin"></iframe>'
     )
 
 
