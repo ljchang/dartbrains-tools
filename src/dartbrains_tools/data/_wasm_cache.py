@@ -125,6 +125,7 @@ _mount_state = "absent"  # absent | populating | ready | unavailable
 _sync_running = False  # IDBFS syncfs is not safe to run concurrently with itself
 _sync_queued = False
 _last_sync_error: str | None = None
+_error_reported = False
 _lru: dict[str, float] = {}
 
 
@@ -153,6 +154,7 @@ def download(repo_id: str, filename: str) -> str:
 
     hit = _find_existing(repo_id, filename)
     if hit is not None:
+        hit = _promote(hit, repo_id, filename)
         _note_use(hit)
         return hit
 
@@ -254,12 +256,11 @@ def _ensure_mount() -> bool:
             # Most likely EBUSY: something already mounted here (a reimport
             # after `sys.modules` was cleared). An existing mount is a working
             # cache, not a reason to fall back to kernel memory and leave a
-            # multi-gigabyte cache invisible.
+            # multi-gigabyte cache invisible -- but only if it really is our
+            # IDBFS mount, and we still have to populate, because this module's
+            # globals are fresh while the mount may not be.
             if not _is_mounted():
                 raise
-            _mount_state = "ready"
-            _load_lru()
-            return True
     except Exception:  # noqa: BLE001 - no IndexedDB at all
         _mount_state = "unavailable"
         return False
@@ -274,10 +275,20 @@ def _ensure_mount() -> bool:
 
 
 def _is_mounted() -> bool:
+    """Whether :data:`CACHE_MOUNT` is *our own* IDBFS mount.
+
+    Not "has a mount": in Emscripten every node carries one, inherited from its
+    parent, so a plain MEMFS directory -- which ``os.makedirs`` has just created
+    -- reports the root mount and would make this trivially true. That turned
+    every mount failure (IndexedDB blocked, a private window refusing storage)
+    into a false ``ready``, with the session-cache fallback unreachable.
+    """
     try:
         import pyodide_js
 
-        return pyodide_js.FS.lookupPath(CACHE_MOUNT).node.mount is not None
+        fs = pyodide_js.FS
+        mount = fs.lookupPath(CACHE_MOUNT).node.mount
+        return mount is not None and mount.mountpoint == CACHE_MOUNT
     except Exception:  # noqa: BLE001
         return False
 
@@ -308,18 +319,32 @@ def _sync_failed(err) -> bool:
 
 
 def _on_populated(err=None) -> None:
-    global _mount_state, _sync_running, _sync_queued
+    """Settle the mount once its populate lands.
+
+    A *failed* populate must not make the mount writable. Local would be empty
+    while IndexedDB still holds every cached dataset, so the next write's flush
+    would reconcile that emptiness outward and delete the whole persisted
+    cache -- other tabs' files included. Unwritable keeps new files in
+    :data:`SESSION_ROOT` and leaves the stored cache alone.
+    """
+    global _mount_state, _sync_running, _sync_queued, _last_sync_error
+
+    _sync_running = False
+    if _sync_failed(err):
+        _last_sync_error = str(err)
+        _mount_state = "unavailable"
+        _sync_queued = False  # nothing may flush against an unpopulated view
+        return
 
     _mount_state = "ready"
-    _sync_running = False
-    _load_lru()  # also on failure: an empty index would clobber the sidecar
+    _load_lru()
     if _sync_queued:
         _sync_queued = False
         persist()
 
 
 def _on_synced(err=None) -> None:
-    global _sync_running, _sync_queued, _last_sync_error
+    global _sync_running, _sync_queued, _last_sync_error, _error_reported
 
     _sync_running = False
     if _sync_failed(err):
@@ -329,21 +354,31 @@ def _on_synced(err=None) -> None:
         # the reader. `_report_sync_error` raises it from the next `download`,
         # which does run in a cell.
         _last_sync_error = str(err)
+        _error_reported = False
+    else:
+        # A later flush succeeding supersedes an earlier failure; keeping it
+        # would warn about a condition that no longer holds.
+        _last_sync_error = None
     if _sync_queued:
         _sync_queued = False
         persist()
 
 
 def _report_sync_error() -> None:
-    """Surface a failed flush from cell context, where the reader can see it."""
-    global _last_sync_error
+    """Surface a failed flush from cell context, where the reader can see it.
 
-    if _last_sync_error is None:
+    Reported once per failure rather than consumed: ``last_sync_error()`` is
+    documented for diagnosis, and popping the value here left it returning
+    ``None`` after any download.
+    """
+    global _error_reported
+
+    if _last_sync_error is None or _error_reported:
         return
-    err, _last_sync_error = _last_sync_error, None
+    _error_reported = True
     warnings.warn(
-        f"could not persist the dataset cache to IndexedDB ({err}); data will "
-        f"be downloaded again next visit",
+        f"could not persist the dataset cache to IndexedDB ({_last_sync_error}); "
+        f"data will be downloaded again next visit",
         stacklevel=3,
     )
 
@@ -362,6 +397,38 @@ def _writable_root() -> str:
     if _ensure_mount() and _mount_state == "ready":
         return CACHE_MOUNT
     return SESSION_ROOT
+
+
+def _promote(path: str, repo_id: str, filename: str) -> str:
+    """Move a session-only copy into the cache once the mount can take it.
+
+    A file downloaded while the mount was still populating lands in
+    :data:`SESSION_ROOT`, and nothing else would ever move it: the kernel would
+    keep hitting the session copy and re-download it on the next visit, forever
+    and silently. The bytes travel as a JS array, so a 107 MB promotion costs
+    no WASM heap.
+    """
+    if not path.startswith(SESSION_ROOT) or _writable_root() != CACHE_MOUNT:
+        return path
+
+    dest = os.path.join(CACHE_MOUNT, repo_id, filename)
+    try:
+        import pyodide_js
+
+        size = os.path.getsize(path)
+        budget = _budget_bytes()
+        if budget and size > budget:
+            return path
+        _make_room(size)
+        _write(dest, pyodide_js.FS.readFile(path))
+        os.remove(path)
+    except Exception:  # noqa: BLE001 - the session copy is still perfectly usable
+        return path
+
+    _note_use(dest)
+    _save_lru()
+    persist()
+    return dest
 
 
 def _find_existing(repo_id: str, filename: str) -> str | None:
@@ -453,6 +520,14 @@ def _note_use(dest: str) -> None:
     snapshot this kernel booted with, so flushing on a plain cache hit would let
     a stale tab delete a file a newer tab had cached. Recency only decides what
     to evict, which happens when writing -- so the sidecar is saved then.
+
+    The cost is accepted deliberately: a kernel that only ever *hits* the cache
+    writes no recency to disk, so across sessions eviction order decays toward
+    "oldest download first" rather than true least-recently-used. That makes
+    eviction pick a slightly worse victim among files that are all
+    re-downloadable. Flushing on reads to avoid it would instead let one stale
+    tab delete another's cached data, which is a real loss for the reader, so
+    the imprecise ordering is the better trade.
     """
     if not dest.startswith(CACHE_MOUNT):
         return

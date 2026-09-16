@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import json
 import os
+import sys
+import warnings
 
 import pytest
 
@@ -221,10 +223,15 @@ def test_a_failed_sync_is_recorded_then_reported_from_a_cell(monkeypatch):
     assert _wasm_cache.last_sync_error() == "QuotaExceededError"
     assert _wasm_cache._sync_running is False
 
+    monkeypatch.setattr(_wasm_cache, "_error_reported", False)
     with pytest.warns(UserWarning, match="could not persist"):
         _wasm_cache._report_sync_error()
 
-    assert _wasm_cache.last_sync_error() is None, "must not warn on every later call"
+    # Reported once, but still readable: last_sync_error() is for diagnosis.
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        _wasm_cache._report_sync_error()
+    assert _wasm_cache.last_sync_error() == "QuotaExceededError"
 
 
 def test_a_successful_sync_records_no_error(monkeypatch):
@@ -432,3 +439,111 @@ def test_a_corrupt_sidecar_is_ignored_not_fatal(cache_dirs):
     mount, _session = cache_dirs
     (mount / _wasm_cache.LRU_FILE).write_text("not json at all")
     assert _wasm_cache._read_lru() == {}
+
+
+# --- the bugs the third review found -------------------------------------------
+
+
+def test_a_plain_directory_is_not_mistaken_for_our_mount(monkeypatch):
+    """Every Emscripten node carries a `.mount` inherited from its parent, so
+    "has a mount" is trivially true for the directory os.makedirs just created.
+    Treating that as success made every mount failure a false `ready`."""
+
+    class _Mount:
+        def __init__(self, mountpoint):
+            self.mountpoint = mountpoint
+
+    class _Node:
+        def __init__(self, mountpoint):
+            self.mount = _Mount(mountpoint)
+
+    class _FS:
+        def __init__(self, mountpoint):
+            self._mountpoint = mountpoint
+
+        def lookupPath(self, _path):  # noqa: N802 - mirrors the JS API
+            return type("R", (), {"node": _Node(self._mountpoint)})()
+
+    class _Pyodide:
+        def __init__(self, mountpoint):
+            self.FS = _FS(mountpoint)
+
+    monkeypatch.setitem(sys.modules, "pyodide_js", _Pyodide("/"))
+    assert not _wasm_cache._is_mounted(), "a MEMFS dir under the root mount is not ours"
+
+    monkeypatch.setitem(sys.modules, "pyodide_js", _Pyodide(_wasm_cache.CACHE_MOUNT))
+    assert _wasm_cache._is_mounted()
+
+
+def test_a_failed_populate_leaves_the_mount_unwritable(monkeypatch):
+    """Local would be empty while IndexedDB still holds every cached dataset,
+    so the next write's flush would reconcile that emptiness outward and delete
+    the whole persisted cache."""
+    monkeypatch.setattr(_wasm_cache, "_mount_state", "populating")
+    monkeypatch.setattr(_wasm_cache, "_sync_running", True)
+    monkeypatch.setattr(_wasm_cache, "_sync_queued", True)
+    monkeypatch.setattr(_wasm_cache, "_last_sync_error", None)
+
+    _wasm_cache._on_populated("IndexedDB unavailable")
+
+    assert _wasm_cache._mount_state == "unavailable"
+    assert _wasm_cache._sync_queued is False, "a queued flush must not run on an empty view"
+    assert _wasm_cache.last_sync_error() == "IndexedDB unavailable"
+    assert _wasm_cache._writable_root() == _wasm_cache.SESSION_ROOT
+
+
+def test_a_later_success_clears_an_earlier_failure(monkeypatch):
+    monkeypatch.setattr(_wasm_cache, "_sync_running", True)
+    monkeypatch.setattr(_wasm_cache, "_sync_queued", False)
+    monkeypatch.setattr(_wasm_cache, "_last_sync_error", "QuotaExceededError")
+
+    _wasm_cache._on_synced(None)
+
+    assert _wasm_cache.last_sync_error() is None
+
+
+def test_a_session_copy_is_promoted_once_the_mount_is_ready(cache_dirs, monkeypatch):
+    """Otherwise the kernel keeps hitting the session copy and re-downloads it
+    every visit, silently and forever."""
+    mount, session = cache_dirs
+    stranded = session / "repo/x/a.nii.gz"
+    stranded.parent.mkdir(parents=True)
+    stranded.write_bytes(b"\0" * 32)
+
+    monkeypatch.setattr(_wasm_cache, "_writable_root", lambda: str(mount))
+    monkeypatch.setattr(_wasm_cache, "CACHE_MOUNT", str(mount))
+    monkeypatch.setattr(_wasm_cache, "persist", lambda: None)
+    monkeypatch.setattr(_wasm_cache, "_save_lru", lambda: None)
+
+    class _FS:
+        @staticmethod
+        def readFile(path):  # noqa: N802 - mirrors the JS API
+            with open(path, "rb") as fh:
+                return fh.read()
+
+    monkeypatch.setitem(sys.modules, "pyodide_js", type("P", (), {"FS": _FS})())
+    monkeypatch.setattr(
+        _wasm_cache,
+        "_write",
+        lambda dest, buf: (
+            os.makedirs(os.path.dirname(dest), exist_ok=True),
+            open(dest, "wb").write(buf),
+        ),
+    )
+
+    out = _wasm_cache._promote(str(stranded), "repo/x", "a.nii.gz")
+
+    assert out == str(mount / "repo/x/a.nii.gz")
+    assert (mount / "repo/x/a.nii.gz").exists()
+    assert not stranded.exists()
+
+
+def test_promotion_is_skipped_while_the_mount_is_not_writable(cache_dirs, monkeypatch):
+    _mount, session = cache_dirs
+    stranded = session / "repo/x/a.nii.gz"
+    stranded.parent.mkdir(parents=True)
+    stranded.write_bytes(b"\0" * 32)
+    monkeypatch.setattr(_wasm_cache, "_writable_root", lambda: _wasm_cache.SESSION_ROOT)
+
+    assert _wasm_cache._promote(str(stranded), "repo/x", "a.nii.gz") == str(stranded)
+    assert stranded.exists()
