@@ -3,7 +3,7 @@
 
 export default {
   render({ model, el }) {
-    const W = 800;
+    const W = 760;
     const H = 300;
     const DPR = Math.min(window.devicePixelRatio, 2);
 

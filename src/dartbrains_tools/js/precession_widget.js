@@ -18,17 +18,21 @@ export default {
     container.style.flexWrap = "wrap";  // stack instead of overflow on narrow screens
     el.appendChild(container);
 
-    const WIDTH = 500;
-    const HEIGHT = 450;
-    const SIG_WIDTH = 280;
-    const SIG_HEIGHT = 450;
+    // The container is a flex row that wraps when it can't fit. At the old
+    // 500 + 280 + 12px gap = 792px it overflowed a medium marimo cell (~725px)
+    // and wrapped into a very tall vertical stack. 400 + 250 + 12 = 662px keeps
+    // the 3D view and the readout side by side, with the slider above them.
+    const WIDTH = 400;
+    const HEIGHT = 330;
+    const SIG_WIDTH = 250;
+    const SIG_HEIGHT = 330;
 
     // --- Three.js Scene ---
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xf8f9fa);
 
     const camera = new THREE.PerspectiveCamera(45, WIDTH / HEIGHT, 0.1, 100);
-    camera.position.set(2.2, 1.5, 2.2);
+    camera.position.set(1.95, 1.35, 1.95);
     camera.lookAt(0, 0, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -360,13 +364,13 @@ export default {
       // --- Oscilloscope: Mx (coil signal) ---
       const barW = w - pad * 2;
       // Start the scope below the gauges + their label/value rows (radius + ~44).
-      const scopeTop = meterY + meterRadius + 44;
+      const scopeTop = meterY + meterRadius + 56;
       const scopeH = h - scopeTop - 35;
       const scopeW = barW;
 
       ctx.fillStyle = "#aaa";
       ctx.font = "11px Arial";
-      ctx.fillText("Mx (coil signal \u2014 oscilloscope)", pad, scopeTop - 4);
+      ctx.fillText("Mx \u2014 coil signal", pad, scopeTop - 6);
 
       // Scope background
       ctx.fillStyle = "#0d0d1a";

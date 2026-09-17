@@ -9,8 +9,8 @@ export default {
     const THREE = await import(THREE_URL);
     const { OrbitControls } = await import(ORBIT_URL);
 
-    const WIDTH = 600;
-    const HEIGHT = 480;
+    const WIDTH = 560;
+    const HEIGHT = 400;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(WIDTH, HEIGHT);
@@ -28,7 +28,7 @@ export default {
     // the arrow tip off the top of the view.
     const FOCUS_Y = 0.45;
     const camera = new THREE.PerspectiveCamera(40, WIDTH / HEIGHT, 0.1, 100);
-    camera.position.set(2.8, 2.2, 2.8);
+    camera.position.set(1.6, 1.25, 1.6);
     camera.lookAt(0, FOCUS_Y, 0);
 
     const controls = new OrbitControls(camera, renderer.domElement);
