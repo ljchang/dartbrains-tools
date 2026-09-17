@@ -18,17 +18,21 @@ export default {
     container.style.flexWrap = "wrap";  // stack instead of overflow on narrow screens
     el.appendChild(container);
 
-    const WIDTH = 500;
-    const HEIGHT = 450;
-    const SIG_WIDTH = 280;
-    const SIG_HEIGHT = 450;
+    // The container is a flex row that wraps when it can't fit. At the old
+    // 500 + 280 + 12px gap = 792px it overflowed a medium marimo cell (~725px)
+    // and wrapped into a very tall vertical stack. 400 + 250 + 12 = 662px keeps
+    // the 3D view and the readout side by side, with the slider above them.
+    const WIDTH = 400;
+    const HEIGHT = 330;
+    const SIG_WIDTH = 250;
+    const SIG_HEIGHT = 330;
 
     // --- Three.js Scene ---
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xf8f9fa);
 
     const camera = new THREE.PerspectiveCamera(45, WIDTH / HEIGHT, 0.1, 100);
-    camera.position.set(2.2, 1.5, 2.2);
+    camera.position.set(1.95, 1.35, 1.95);
     camera.lookAt(0, 0, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
