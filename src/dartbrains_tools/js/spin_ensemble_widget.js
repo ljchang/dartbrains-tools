@@ -3,7 +3,7 @@
 
 export default {
   render({ model, el }) {
-    const WIDTH = 950;
+    const WIDTH = 760;
     const HEIGHT = 400;
     const DPR = Math.min(window.devicePixelRatio, 2);
 
@@ -257,9 +257,13 @@ export default {
       ctx.strokeStyle = "#999";
       ctx.lineWidth = 1;
       ctx.strokeRect(barX, barY, barW, barH);
+      // Right-aligned above the bar, not past its right end: out there it ran
+      // into the neighbouring panel's time-axis labels.
       ctx.fillStyle = "#333";
       ctx.font = "bold 11px Arial";
-      ctx.fillText(`|Mxy| = ${netMag.toFixed(2)}`, barX + barW + 8, barY + 12);
+      ctx.textAlign = "right";
+      ctx.fillText(`|Mxy| = ${netMag.toFixed(2)}`, barX + barW, barY - 8);
+      ctx.textAlign = "left";
 
       // Phase label
       const labels = seqType === "spin_echo" ? PHASE_LABELS : GRE_LABELS;

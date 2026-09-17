@@ -364,13 +364,13 @@ export default {
       // --- Oscilloscope: Mx (coil signal) ---
       const barW = w - pad * 2;
       // Start the scope below the gauges + their label/value rows (radius + ~44).
-      const scopeTop = meterY + meterRadius + 44;
+      const scopeTop = meterY + meterRadius + 56;
       const scopeH = h - scopeTop - 35;
       const scopeW = barW;
 
       ctx.fillStyle = "#aaa";
       ctx.font = "11px Arial";
-      ctx.fillText("Mx (coil signal \u2014 oscilloscope)", pad, scopeTop - 4);
+      ctx.fillText("Mx \u2014 coil signal", pad, scopeTop - 6);
 
       // Scope background
       ctx.fillStyle = "#0d0d1a";

@@ -17,8 +17,8 @@ export default {
     container.style.flexWrap = "wrap";  // stack instead of overflow on narrow screens
     el.appendChild(container);
 
-    const WIDTH = 550;
-    const HEIGHT = 480;
+    const WIDTH = 480;
+    const HEIGHT = 430;
 
     // --- Three.js Scene ---
     const scene = new THREE.Scene();
@@ -99,8 +99,8 @@ export default {
     cube.add(wireframe);
 
     // --- Affine matrix display (Canvas 2D) ---
-    const MAT_W = 260;
-    const MAT_H = 480;
+    const MAT_W = 250;
+    const MAT_H = 430;
     const matCanvas = document.createElement("canvas");
     matCanvas.width = MAT_W * 2;
     matCanvas.height = MAT_H * 2;
