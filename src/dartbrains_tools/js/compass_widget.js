@@ -90,14 +90,14 @@ export default {
       prevB0 = newB0;
     });
 
-    // Push button
+    // Push button, inline with the B0 slider in the controls row.
+    // It previously sat under the compass with position:absolute, which took
+    // it out of normal flow: its wrapper collapsed to zero height, so the
+    // button overflowed the bottom of the container and got clipped.
     const btn = document.createElement("button");
     btn.textContent = "\u21bb Push needle";
-    btn.style.cssText = "position:absolute;margin-top:8px;padding:6px 16px;border-radius:6px;border:1px solid #888;background:#f0f0f0;cursor:pointer;font-size:13px;";
-    // Place it below the compass
-    const btnWrap = document.createElement("div");
-    btnWrap.style.cssText = "display:flex;justify-content:center;width:" + SIZE + "px;";
-    btnWrap.appendChild(btn);
+    btn.style.cssText = "margin-left:8px;padding:6px 16px;border-radius:6px;border:1px solid #888;background:#f0f0f0;cursor:pointer;font-size:13px;white-space:nowrap;";
+    controls.appendChild(btn);
 
     const leftCol = document.createElement("div");
     leftCol.style.display = "flex";
@@ -106,7 +106,6 @@ export default {
     // Move canvas into leftCol
     wrapper.removeChild(canvas);
     leftCol.appendChild(canvas);
-    leftCol.appendChild(btnWrap);
     wrapper.insertBefore(leftCol, sigCanvas);
 
     btn.addEventListener("click", () => {
