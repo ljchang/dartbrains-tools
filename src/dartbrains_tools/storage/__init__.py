@@ -61,8 +61,10 @@ __all__ = [
 def signin(server: str | None = None, offering: str | None = None, *, force: bool = False) -> str:
     """Sign in with Dartmouth (device handshake) and remember the token.
 
-    No-op when a valid token is cached. Returns the NetID."""
-    return _state.signin(server, offering, force=force).token.netid or ""
+    No-op when a valid token is cached, or when DARTBRAINS_STORAGE_ROOT selects
+    the local backend. Returns the NetID ("" when local)."""
+    b = _state.signin(server, offering, force=force)
+    return (b.token.netid or "") if b else ""
 
 
 def signout() -> None:

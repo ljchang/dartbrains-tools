@@ -47,19 +47,12 @@ def get_tr() -> float:
     return TR
 
 
-def get_file(subject: str, scope: str, suffix: str, extension: str = ".nii.gz") -> str:
-    """Download and return the local path to a dataset file.
+def filename(subject: str, scope: str, suffix: str, extension: str = ".nii.gz") -> str:
+    """The dataset-relative path of a file, without downloading it.
 
-    Args:
-        subject: Subject ID, e.g. "S01"
-        scope: One of "raw", "derivatives", or "betas"
-        suffix: BIDS suffix -- "bold", "T1w", "events", "confounds", "mask",
-                or a condition name for betas (e.g. "audio_computation"),
-                or "all" for the stacked betas file
-        extension: File extension including dot, e.g. ".nii.gz", ".tsv"
-
-    Returns:
-        Local filesystem path to the cached file.
+    The same mapping :func:`get_file` uses, exposed so other stores that mirror
+    the dataset's layout (the class copy on R2, a local directory) can be
+    addressed with the same arguments.
     """
     s = subject
     sub = f"sub-{s}"
@@ -93,7 +86,24 @@ def get_file(subject: str, scope: str, suffix: str, extension: str = ".nii.gz") 
     else:
         raise ValueError(f"Unknown scope: {scope}. Use 'raw', 'derivatives', or 'betas'.")
 
-    return _download(filename)
+    return filename
+
+
+def get_file(subject: str, scope: str, suffix: str, extension: str = ".nii.gz") -> str:
+    """Download and return the local path to a dataset file.
+
+    Args:
+        subject: Subject ID, e.g. "S01"
+        scope: One of "raw", "derivatives", or "betas"
+        suffix: BIDS suffix -- "bold", "T1w", "events", "confounds", "mask",
+                or a condition name for betas (e.g. "audio_computation"),
+                or "all" for the stacked betas file
+        extension: File extension including dot, e.g. ".nii.gz", ".tsv"
+
+    Returns:
+        Local filesystem path to the cached file.
+    """
+    return _download(filename(subject, scope, suffix, extension))
 
 
 def load_events(subject: str) -> pd.DataFrame:

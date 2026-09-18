@@ -21,10 +21,10 @@ def use_local() -> bool:
 
 def signin(
     server: str | None = None, offering: str | None = None, *, force: bool = False, echo=print
-) -> Broker:
+) -> Broker | None:
     global _broker, _session
     if use_local():
-        raise RuntimeError("DARTBRAINS_STORAGE_ROOT is set: storage is local, no sign-in needed")
+        return None  # local backend: nothing to sign in to (the book build, tests)
     token = _auth.signin(_notebook.resolve_server(server), force=force, echo=echo)
     if _broker is None or force or _broker.token.value != token.value:
         _broker = Broker(token, _notebook.resolve_offering(offering))

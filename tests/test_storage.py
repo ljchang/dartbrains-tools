@@ -336,3 +336,22 @@ def test_r2_session_credential_provider_refreshes(monkeypatch):
     assert sess.mount("/course").mode == "r"
     with pytest.raises(storage.NotReleased):
         sess.mount("/assignments/midterm")
+
+
+def test_signin_is_a_noop_on_the_local_backend(local_root):
+    assert storage.signin() == ""
+    assert storage.private().mode == "rw"
+
+
+def test_localizer_filename_matches_get_file(monkeypatch):
+    from dartbrains_tools.data import localizer
+
+    seen = []
+    monkeypatch.setattr(localizer, "_download", lambda f: seen.append(f) or f"/cache/{f}")
+    rel = localizer.filename("S01", "derivatives", "bold")
+    assert rel.endswith("sub-S01_task-localizer_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz")
+    assert localizer.get_file("S01", "derivatives", "bold") == f"/cache/{rel}"
+    assert (
+        localizer.filename("S01", "raw", "events", ".tsv")
+        == "sub-S01/func/sub-S01_task-localizer_events.tsv"
+    )
