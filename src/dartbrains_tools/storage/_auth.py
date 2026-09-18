@@ -102,10 +102,17 @@ def save(token: Token) -> Path:
     if path.name == ".env":
         _write_env_line(path, token.value)
     else:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({"server": token.server, "token": token.value}))
-        path.chmod(0o600)
+        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        _write_private(path, json.dumps({"server": token.server, "token": token.value}))
     return path
+
+
+def _write_private(path: Path, text: str) -> None:
+    """Create with mode 0600 *before* any bytes land, so no umask ever exposes
+    a token; an existing file keeps whatever mode it has but gets truncated."""
+    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(text)
 
 
 def clear() -> None:
@@ -130,7 +137,7 @@ def _write_env_line(path: Path, value: str | None) -> None:
     lines = [ln for ln in lines if not ln.startswith(f"{TOKEN_ENV}=")]
     if value:
         lines.append(f"{TOKEN_ENV}={value}")
-    path.write_text("\n".join(lines) + ("\n" if lines else ""))
+    _write_private(path, "\n".join(lines) + ("\n" if lines else ""))
 
 
 # --------------------------------------------------------------------------

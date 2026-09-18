@@ -51,7 +51,7 @@ class ObstoreFS:
     def get_bytes(self, key: str) -> bytes:
         try:
             return bytes(self._obs.get(self.native, key).bytes())
-        except self._obs.exceptions.NotFoundError as e:
+        except FileNotFoundError as e:  # obstore's NotFoundError subclasses it
             raise NotFound(key) from e
 
     def put_bytes(self, key: str, data: bytes) -> None:
@@ -63,7 +63,7 @@ class ObstoreFS:
     def head(self, key: str) -> Entry | None:
         try:
             meta = self._obs.head(self.native, key)
-        except self._obs.exceptions.NotFoundError:
+        except FileNotFoundError:
             return None
         return Entry(meta["path"], int(meta["size"]), meta.get("e_tag"))
 
@@ -76,7 +76,7 @@ class ObstoreFS:
         tmp = dest.with_name(dest.name + ".part")
         try:
             resp = self._obs.get(self.native, key)
-        except self._obs.exceptions.NotFoundError as e:
+        except FileNotFoundError as e:  # obstore's NotFoundError subclasses it
             raise NotFound(key) from e
         with open(tmp, "wb") as f:
             for chunk in resp:
