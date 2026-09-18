@@ -1,6 +1,6 @@
 """DartBrains helper library: data loaders, MR physics simulations, anywidgets."""
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 from . import bids, mr_simulations, mr_widgets
 
@@ -11,7 +11,7 @@ __all__ = [
     "mr_simulations",
     "mr_widgets",
     "notebook_utils",  # lazy: requires the [notebook] extra (marimo)
-    "storage",         # lazy: the [storage] extra (obstore) is only needed once a bucket opens
+    "storage",         # lazy: obstore (absent in the browser) loads only once a bucket opens
 ]
 
 
