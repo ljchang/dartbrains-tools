@@ -166,12 +166,13 @@ wheels = [
 
 [[package]]
 name = "dartbrains-tools"
-version = "0.2.0"
+version = "0.2.1"
 source = { editable = "." }
 dependencies = [
     { name = "anywidget" },
     { name = "huggingface-hub" },
     { name = "numpy" },
+    { name = "obstore", marker = "sys_platform != 'emscripten'" },
     { name = "pandas" },
     { name = "plotly" },
     { name = "scipy" },
@@ -183,7 +184,7 @@ notebook = [
     { name = "marimo" },
 ]
 storage = [
-    { name = "obstore" },
+    { name = "obstore", marker = "sys_platform != 'emscripten'" },
 ]
 
 [package.dev-dependencies]
@@ -198,7 +199,8 @@ requires-dist = [
     { name = "huggingface-hub", specifier = ">=1.0" },
     { name = "marimo", marker = "extra == 'notebook'", specifier = ">=0.21" },
     { name = "numpy", specifier = ">=2.0" },
-    { name = "obstore", marker = "extra == 'storage'", specifier = ">=0.6" },
+    { name = "obstore", marker = "sys_platform != 'emscripten'", specifier = ">=0.6" },
+    { name = "obstore", marker = "sys_platform != 'emscripten' and extra == 'storage'", specifier = ">=0.6" },
     { name = "pandas" },
     { name = "plotly", specifier = ">=6.0" },
     { name = "scipy", specifier = ">=1.13" },
