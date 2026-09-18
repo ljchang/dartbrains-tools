@@ -1,6 +1,6 @@
 """DartBrains helper library: data loaders, MR physics simulations, anywidgets."""
 
-__version__ = "0.1.10"
+__version__ = "0.2.0"
 
 from . import bids, mr_simulations, mr_widgets
 
@@ -11,6 +11,7 @@ __all__ = [
     "mr_simulations",
     "mr_widgets",
     "notebook_utils",  # lazy: requires the [notebook] extra (marimo)
+    "storage",         # lazy: the [storage] extra (obstore) is only needed once a bucket opens
 ]
 
 
@@ -24,7 +25,7 @@ def __getattr__(name):
     # `notebook_utils` is lazy for a different reason: it requires the [notebook]
     # extra (marimo). Both use importlib.import_module -- NOT `from . import name` --
     # because the latter re-enters this __getattr__ and recurses infinitely.
-    if name in ("data", "notebook_utils"):
+    if name in ("data", "notebook_utils", "storage"):
         import importlib
 
         return importlib.import_module(f"{__name__}.{name}")

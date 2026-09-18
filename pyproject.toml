@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dartbrains-tools"
-version = "0.1.10"
+version = "0.2.0"
 description = "Helper library and interactive anywidgets for the DartBrains fMRI course"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -36,6 +36,8 @@ dependencies = [
 
 [project.optional-dependencies]
 notebook = ["marimo>=0.21"]
+# dartbrains_tools.storage: R2 access with the grader-issued credentials.
+storage = ["obstore>=0.6"]
 
 [project.urls]
 Homepage = "https://dartbrains.org"
