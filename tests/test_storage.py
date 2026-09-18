@@ -355,3 +355,67 @@ def test_localizer_filename_matches_get_file(monkeypatch):
         localizer.filename("S01", "raw", "events", ".tsv")
         == "sub-S01/func/sub-S01_task-localizer_events.tsv"
     )
+
+
+def test_connect_without_signin_is_false(tmp_path, monkeypatch):
+    monkeypatch.setenv("DARTBRAINS_RUNTIME", "local")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.delenv("DARTBRAINS_GRADER_TOKEN", raising=False)
+    monkeypatch.delenv("DARTBRAINS_STORAGE_ROOT", raising=False)
+    _state.reset()
+    assert storage.connect() is False
+    assert storage.connect(button=None) is False
+
+
+def test_connect_adopts_the_buttons_token_and_opens_a_session(tmp_path, monkeypatch):
+    monkeypatch.setenv("DARTBRAINS_RUNTIME", "local")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.delenv("DARTBRAINS_GRADER_TOKEN", raising=False)
+    monkeypatch.delenv("DARTBRAINS_STORAGE_ROOT", raising=False)
+    monkeypatch.setenv("DARTBRAINS_GRADER_SERVER", "https://grader.example")
+    monkeypatch.setenv("DARTBRAINS_OFFERING", "off-1")
+    _state.reset()
+    opened = []
+
+    class FakeBroker:
+        def __init__(self, token, offering_id=None):
+            self.token, self.offering_id = token, offering_id
+
+        def session(self, client=None):
+            opened.append((self.token.netid, self.offering_id, client))
+            return _payload()
+
+    monkeypatch.setattr(_state, "Broker", FakeBroker)
+
+    class Button:  # what mo.ui.anywidget(GraderWidget) looks like from Python
+        value = {
+            "token": _jwt(sub="f00abc1"),
+            "netid": "f00abc1",
+            "server": "https://grader.example",
+        }
+
+    pytest.importorskip("obstore")
+    assert storage.connect(Button()) is True
+    assert opened == [("f00abc1", "off-1", "dartbrains-tools/local")]
+    assert storage.private().prefix == "users/x/abc/"
+    # The token was cached, so a later run connects without the button.
+    assert _auth.load("https://grader.example").netid == "f00abc1"
+    _state.reset()
+    assert storage.connect() is True
+
+    # Signed in but not enrolled: the broker refuses; connect() says so and returns False.
+    from dartbrains_tools.storage._http import HttpError
+
+    class Refusing(FakeBroker):
+        def session(self, client=None):
+            raise HttpError(404, "not_found", "offering not found")
+
+    monkeypatch.setattr(_state, "Broker", Refusing)
+    _state.reset()
+    assert storage.connect(Button(), quiet=True) is False
+
+
+def test_signin_button_is_static_under_local_backend(local_root):
+    pytest.importorskip("marimo")
+    el = storage.signin_button()
+    assert "Sign in with Dartmouth" in el.text

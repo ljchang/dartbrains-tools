@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dartbrains-tools"
-version = "0.2.2"
+version = "0.2.3"
 description = "Helper library and interactive anywidgets for the DartBrains fMRI course"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -37,6 +37,8 @@ dependencies = [
     # available anyway) while molab and local kernels get it without any
     # notebook having to spell out an extra.
     "obstore>=0.6; sys_platform != 'emscripten'",
+    # storage.signin_button(): the same sign-in widget assignments use.
+    "marimo-grader-client>=0.1.1",
 ]
 
 [project.optional-dependencies]

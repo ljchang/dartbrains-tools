@@ -32,6 +32,20 @@ def signin(
     return _broker
 
 
+def adopt(token, offering: str | None = None) -> Broker:
+    """Use a token obtained elsewhere (the sign-in button) and remember it."""
+    global _broker, _session
+    _auth.save(token)
+    if _broker is None or _broker.token.value != token.value:
+        _broker = Broker(token, _notebook.resolve_offering(offering))
+        _session = None
+    return _broker
+
+
+def connected() -> bool:
+    return _session is not None
+
+
 def broker() -> Broker:
     if _broker is None:
         return signin()
