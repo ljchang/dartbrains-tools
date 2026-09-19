@@ -500,3 +500,13 @@ def test_connect_accepts_a_bare_grader_widget(tmp_path, monkeypatch):
     pytest.importorskip("obstore")
     assert storage.connect(Bare()) is True
     assert storage.whoami() == "f00abc1"
+
+
+def test_assignment_card_is_empty_on_the_static_site(monkeypatch):
+    pytest.importorskip("marimo")
+    from dartbrains_tools.notebook_utils import assignment_card
+
+    monkeypatch.setenv("DARTBRAINS_COURSE", "neuroimaging")
+    monkeypatch.setenv("DARTBRAINS_TERM", "2026-fall")
+    monkeypatch.setenv("GRADER_RENDER", "1")
+    assert assignment_card("glm").text == ""
