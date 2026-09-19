@@ -58,11 +58,17 @@ def _main_file() -> str | None:
 
 
 def script_metadata(source: str | None = None) -> dict[str, str]:
-    """``grader-*`` keys from the notebook's ``# /// script`` block."""
+    """Grader identity from the notebook's ``# /// script`` block.
+
+    Two spellings, normalised to ``grader-<key>``: the top-level ``grader-*``
+    keys a published assignment carries, and the ``[tool.grader]`` table
+    marimo-book's ``sync-deps`` writes into chapters (``server``, ``course``,
+    ``term``). Top-level keys win when both are present.
+    """
     source = source if source is not None else notebook_source()
     if not source:
         return {}
-    out: dict[str, str] = {}
+    block: list[str] = []
     inside = False
     for line in source.splitlines():
         if line.strip() == _OPEN:
@@ -70,11 +76,27 @@ def script_metadata(source: str | None = None) -> dict[str, str]:
             continue
         if inside and line.strip() == _CLOSE:
             break
-        if not inside:
-            continue
-        m = _LINE.match(line)
-        if m and m.group(1).startswith("grader-"):
-            out[m.group(1)] = m.group(2).strip().strip("'\"")
+        if inside:
+            block.append(line[2:] if line.startswith("# ") else line.lstrip("#"))
+    if not block:
+        return {}
+    out: dict[str, str] = {}
+    try:
+        import tomllib
+
+        table = tomllib.loads("\n".join(block))
+    except Exception:  # noqa: BLE001 - fall back to the line scan below
+        table = {}
+    for k, v in (table.get("tool", {}) or {}).get("grader", {}).items():
+        out[f"grader-{k}"] = str(v)
+    for k, v in table.items():
+        if isinstance(k, str) and k.startswith("grader-"):
+            out[k] = str(v)
+    if not out:  # a block tomllib could not parse: keep the old line scan
+        for line in block:
+            m = _LINE.match("# " + line)
+            if m and m.group(1).startswith("grader-"):
+                out[m.group(1)] = m.group(2).strip().strip("'\"")
     return out
 
 
@@ -92,3 +114,11 @@ def resolve_offering(explicit: str | None = None) -> str | None:
         or os.environ.get("DARTBRAINS_OFFERING")
         or script_metadata().get("grader-offering-id")
     )
+
+
+def resolve_course(explicit: str | None = None) -> str | None:
+    return explicit or os.environ.get("DARTBRAINS_COURSE") or script_metadata().get("grader-course")
+
+
+def resolve_term(explicit: str | None = None) -> str | None:
+    return explicit or os.environ.get("DARTBRAINS_TERM") or script_metadata().get("grader-term")

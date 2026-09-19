@@ -27,9 +27,18 @@ def signin(
         return None  # local backend: nothing to sign in to (the book build, tests)
     token = _auth.signin(_notebook.resolve_server(server), force=force, echo=echo)
     if _broker is None or force or _broker.token.value != token.value:
-        _broker = Broker(token, _notebook.resolve_offering(offering))
+        _broker = _make_broker(token, offering)
         _session = None
     return _broker
+
+
+def _make_broker(token, offering: str | None) -> Broker:
+    return Broker(
+        token,
+        _notebook.resolve_offering(offering),
+        course=_notebook.resolve_course(),
+        term=_notebook.resolve_term(),
+    )
 
 
 def adopt(token, offering: str | None = None) -> Broker:
@@ -37,7 +46,7 @@ def adopt(token, offering: str | None = None) -> Broker:
     global _broker, _session
     _auth.save(token)
     if _broker is None or _broker.token.value != token.value:
-        _broker = Broker(token, _notebook.resolve_offering(offering))
+        _broker = _make_broker(token, offering)
         _session = None
     return _broker
 

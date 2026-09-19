@@ -114,7 +114,11 @@ def connect(button=None, *, offering: str | None = None, quiet: bool = False) ->
     token = None
     if button is not None:
         val = getattr(button, "value", None) or {}
-        raw = val.get("token") or getattr(getattr(button, "widget", None), "token", "")
+        raw = (
+            val.get("token")
+            or getattr(getattr(button, "widget", None), "token", "")
+            or getattr(button, "token", "")  # a bare GraderWidget, e.g. Grader().signin_button()
+        )
         if raw:
             server = (
                 val.get("server") or _notebook.resolve_server(None) or _auth.DEFAULT_SERVER

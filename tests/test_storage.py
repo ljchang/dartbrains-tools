@@ -378,7 +378,7 @@ def test_connect_adopts_the_buttons_token_and_opens_a_session(tmp_path, monkeypa
     opened = []
 
     class FakeBroker:
-        def __init__(self, token, offering_id=None):
+        def __init__(self, token, offering_id=None, **kw):
             self.token, self.offering_id = token, offering_id
 
         def session(self, client=None):
@@ -419,3 +419,84 @@ def test_signin_button_is_static_under_local_backend(local_root):
     pytest.importorskip("marimo")
     el = storage.signin_button()
     assert "Sign in with Dartmouth" in el.text
+
+
+def test_script_metadata_reads_tool_grader_table():
+    src = (
+        "# /// script\n"
+        '# requires-python = ">=3.11"\n'
+        '# dependencies = ["marimo"]\n'
+        "#\n"
+        "# [tool.grader]\n"
+        '# server = "https://grader.example"\n'
+        '# course = "neuroimaging"\n'
+        '# term = "2026-fall"\n'
+        "# ///\n"
+        "import marimo\n"
+    )
+    assert _notebook.script_metadata(src) == {
+        "grader-server": "https://grader.example",
+        "grader-course": "neuroimaging",
+        "grader-term": "2026-fall",
+    }
+
+
+def test_broker_picks_the_offering_by_course_and_term(monkeypatch):
+    from dartbrains_tools.storage._broker import Broker
+    from dartbrains_tools.storage._http import HttpError
+
+    me = {
+        "netid": "f00abc1",
+        "enrollments": [
+            {"offering_id": "old", "course_slug": "neuroimaging", "term": "2025-fall"},
+            {"offering_id": "new", "course_slug": "neuroimaging", "term": "2026-fall"},
+        ],
+    }
+    b = Broker(_auth.Token(_jwt(), "https://g"), course="neuroimaging", term="2026-fall")
+    monkeypatch.setattr(b, "me", lambda: me)
+    assert b.pick_offering() == "new"
+    other = Broker(_auth.Token(_jwt(), "https://g"), course="neuroimaging", term="2027-winter")
+    monkeypatch.setattr(other, "me", lambda: me)
+    with pytest.raises(HttpError, match="not enrolled"):
+        other.pick_offering()
+
+
+def test_assignment_card_uses_tool_grader(monkeypatch):
+    pytest.importorskip("marimo")
+    from dartbrains_tools.notebook_utils import assignment_card
+
+    monkeypatch.setenv("DARTBRAINS_GRADER_SERVER", "https://grader.example")
+    monkeypatch.setenv("DARTBRAINS_COURSE", "neuroimaging")
+    monkeypatch.setenv("DARTBRAINS_TERM", "2026-fall")
+    html = assignment_card("glm-single-subject").text
+    assert "https://grader.example/a/neuroimaging/2026-fall/glm-single-subject/molab" in html
+    assert "student.py" in html and "Glm Single Subject" in html
+    monkeypatch.delenv("DARTBRAINS_COURSE")
+    monkeypatch.setenv("DARTBRAINS_NOTEBOOK", "/nonexistent")
+    assert "cannot be built" in assignment_card("glm").text
+
+
+def test_connect_accepts_a_bare_grader_widget(tmp_path, monkeypatch):
+    monkeypatch.setenv("DARTBRAINS_RUNTIME", "local")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.delenv("DARTBRAINS_GRADER_TOKEN", raising=False)
+    monkeypatch.delenv("DARTBRAINS_STORAGE_ROOT", raising=False)
+    monkeypatch.setenv("DARTBRAINS_GRADER_SERVER", "https://grader.example")
+    monkeypatch.setenv("DARTBRAINS_OFFERING", "off-1")
+    _state.reset()
+
+    class FakeBroker:
+        def __init__(self, token, offering_id=None, **kw):
+            self.token, self.offering_id = token, offering_id
+
+        def session(self, client=None):
+            return _payload()
+
+    monkeypatch.setattr(_state, "Broker", FakeBroker)
+
+    class Bare:  # marimo_grader_client.GraderWidget as returned by Grader().signin_button()
+        token = _jwt(sub="f00abc1")
+
+    pytest.importorskip("obstore")
+    assert storage.connect(Bare()) is True
+    assert storage.whoami() == "f00abc1"
