@@ -128,9 +128,16 @@ def assignment_card(
     site the page's own assignment drawer already does this; the card is for
     molab and local runs.
     """
+    import os
+
     import marimo as mo
 
     from .storage import _auth, _notebook
+
+    if os.environ.get("GRADER_RENDER"):
+        # The static site: the page's own assignment drawer already carries
+        # these links, so the card would be a duplicate there.
+        return mo.Html("")
 
     server = (server or _notebook.resolve_server(None) or _auth.DEFAULT_SERVER).rstrip("/")
     course = course or _notebook.resolve_course()
