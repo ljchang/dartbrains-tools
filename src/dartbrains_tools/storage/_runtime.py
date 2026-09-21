@@ -17,6 +17,7 @@ Three runtimes matter and they differ in what survives:
 from __future__ import annotations
 
 import os
+import re
 import socket
 import sys
 from pathlib import Path
@@ -35,16 +36,39 @@ def kind() -> str:
     return "local"
 
 
+_POD_HOST = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-[0-9a-z]{5}$"
+)
+
+
 def _looks_like_molab() -> bool:
-    # Best effort until the molab spike settles what the sandbox exposes.
-    # DARTBRAINS_RUNTIME=molab in the notebook's .env is the reliable override.
-    if any(k.upper().startswith("MOLAB") for k in os.environ):
-        return True
+    """molab's sandbox, as observed from inside one (2026-09-21):
+
+        hostname   cc1bc46e-05af-4f5d-a1af-b9b6f129d443-gf7hb   (a pod name)
+        cwd        /marimo
+        executable /tmp/uv-venv/bin/python
+        env        MARIMO_MANAGE_SCRIPT_METADATA=true, MARIMO_CACHE_STORE_ALLOWLIST, ...
+
+    Nothing says "molab", so this counts signals and wants two of them: any
+    one could happen on a laptop (a /marimo directory, a uv venv under /tmp),
+    two together do not.
+    """
+    signals = 0
     try:
-        host = socket.gethostname()
+        if Path.cwd() == Path("/marimo") or Path("/marimo").is_dir():
+            signals += 1
     except OSError:
-        return False
-    return "molab" in host.lower()
+        pass
+    if sys.executable.startswith("/tmp/uv-venv/"):
+        signals += 1
+    if os.environ.get("MARIMO_MANAGE_SCRIPT_METADATA"):
+        signals += 1
+    try:
+        if _POD_HOST.match(socket.gethostname()):
+            signals += 1
+    except OSError:
+        pass
+    return signals >= 2
 
 
 def config_dir() -> Path:

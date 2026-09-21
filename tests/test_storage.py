@@ -510,3 +510,28 @@ def test_assignment_card_is_empty_on_the_static_site(monkeypatch):
     monkeypatch.setenv("DARTBRAINS_TERM", "2026-fall")
     monkeypatch.setenv("GRADER_RENDER", "1")
     assert assignment_card("glm").text == ""
+
+
+def test_molab_is_recognised_from_two_sandbox_signals(monkeypatch, tmp_path):
+    from dartbrains_tools.storage import _runtime
+
+    monkeypatch.delenv("DARTBRAINS_RUNTIME", raising=False)
+    monkeypatch.delenv("MARIMO_MANAGE_SCRIPT_METADATA", raising=False)
+    monkeypatch.setattr(_runtime.sys, "platform", "linux")
+    monkeypatch.setattr(_runtime.socket, "gethostname", lambda: "laptop.local")
+    monkeypatch.setattr(_runtime.sys, "executable", "/usr/bin/python3")
+    monkeypatch.chdir(tmp_path)
+    assert _runtime.kind() == "local"
+    # one signal alone is not enough
+    monkeypatch.setenv("MARIMO_MANAGE_SCRIPT_METADATA", "true")
+    assert _runtime.kind() == "local"
+    # two are: the sandbox interpreter plus the env var
+    monkeypatch.setattr(_runtime.sys, "executable", "/tmp/uv-venv/bin/python")
+    assert _runtime.kind() == "molab"
+    # the pod hostname plus the interpreter, without the env var
+    monkeypatch.delenv("MARIMO_MANAGE_SCRIPT_METADATA")
+    monkeypatch.setattr(
+        _runtime.socket, "gethostname", lambda: "cc1bc46e-05af-4f5d-a1af-b9b6f129d443-gf7hb"
+    )
+    assert _runtime.kind() == "molab"
+    assert _runtime.token_file() == tmp_path / ".env"
