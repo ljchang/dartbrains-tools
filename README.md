@@ -27,8 +27,9 @@ pip install "dartbrains-tools[notebook]"
   `CostFunctionWidget`, `SmoothingWidget`).
 - `dartbrains_tools.storage` — course storage behind Dartmouth sign-in: the class copy of the
   data, each student's private space, assignment data released on a schedule, and a durable
-  cache — on Cloudflare R2, with hour-long credentials the grader mints per prefix. Falls back
-  to a local directory (`DARTBRAINS_STORAGE_ROOT`) for builds and tests.
+  cache. A thin wrapper over [`marimo_grader_client.storage`](https://marimograder.org/students/course-storage/)
+  that sets DartBrains' grader as the default and adds `dataset()` for the public Hugging Face
+  repos. Falls back to a local directory (`GRADER_STORAGE_ROOT`) for builds and tests.
 - `dartbrains_tools.notebook_utils` — marimo helpers: `youtube()`, `image()` (the book's
   figures wherever the notebook runs, including molab), `assignment_card()` (links to a
   chapter's assignment on the grader).
@@ -84,8 +85,8 @@ storage.course().sync("~/data/localizer", "localizer")         # instructors: co
 ```
 
 The notebook's `# /// script` block tells the library which grader, course and term it belongs to
-(`[tool.grader]`, written by marimo-book's `sync-deps`); `DARTBRAINS_GRADER_SERVER`,
-`DARTBRAINS_COURSE`, `DARTBRAINS_TERM` and `DARTBRAINS_OFFERING` override it.
+(`[tool.grader]`, written by marimo-book's `sync-deps`); `GRADER_SERVER`, `GRADER_COURSE`,
+`GRADER_TERM` and `GRADER_OFFERING_ID` override it (the 0.2.x `DARTBRAINS_*` names still work).
 
 ## Development
 
