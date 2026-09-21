@@ -25,7 +25,13 @@ pip install "dartbrains-tools[notebook]"
   (`PrecessionWidget`, `SpinEnsembleWidget`, `KSpaceWidget`, `ConvolutionWidget`,
   `EncodingWidget`, `CompassWidget`, `NetMagnetizationWidget`, `TransformCubeWidget`,
   `CostFunctionWidget`, `SmoothingWidget`).
-- `dartbrains_tools.notebook_utils` — small marimo helpers (`youtube`).
+- `dartbrains_tools.storage` — course storage behind Dartmouth sign-in: the class copy of the
+  data, each student's private space, assignment data released on a schedule, and a durable
+  cache — on Cloudflare R2, with hour-long credentials the grader mints per prefix. Falls back
+  to a local directory (`DARTBRAINS_STORAGE_ROOT`) for builds and tests.
+- `dartbrains_tools.notebook_utils` — marimo helpers: `youtube()`, `image()` (the book's
+  figures wherever the notebook runs, including molab), `assignment_card()` (links to a
+  chapter's assignment on the grader).
 
 ## Quick start
 
@@ -56,6 +62,30 @@ from dartbrains_tools.data import paranoia
 bold = paranoia.get_file("sub-tb2994", run=1, suffix="bold")
 participants = paranoia.load_participants()
 ```
+
+```python
+# Course storage (needs a Dartmouth sign-in; public datasets above need none)
+from dartbrains_tools import storage
+
+signin = storage.signin_button(); signin                       # in a marimo cell: never blocks
+course = storage.course() if storage.connect(signin) else None  # else: public data
+
+path = course.local_path("localizer/sub-S01/func/sub-S01_task-localizer_events.tsv")
+storage.private().put("week3/betas.pkl", betas)                # pickle/npy/csv/json/nii.gz by extension
+storage.private().get("week3/betas.pkl")
+storage.assignment("midterm")                                  # NotReleased before release_at
+
+@storage.cache                                                 # local -> shared cache -> private cache -> compute
+def fit(subject): ...
+
+# Outside marimo (scripts, the instructor uploading data):
+storage.signin()                                               # device sign-in, cached afterwards
+storage.course().sync("~/data/localizer", "localizer")         # instructors: course() is read-write
+```
+
+The notebook's `# /// script` block tells the library which grader, course and term it belongs to
+(`[tool.grader]`, written by marimo-book's `sync-deps`); `DARTBRAINS_GRADER_SERVER`,
+`DARTBRAINS_COURSE`, `DARTBRAINS_TERM` and `DARTBRAINS_OFFERING` override it.
 
 ## Development
 
