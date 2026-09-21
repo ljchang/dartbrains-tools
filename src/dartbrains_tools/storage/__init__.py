@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import os
 
-from . import _auth, _notebook, _state
+from . import _auth, _notebook, _runtime, _state
 from ._auth import NotSignedIn, Token
 from ._cache import cache
 from ._fs import NotFound
@@ -111,6 +111,15 @@ def connect(button=None, *, offering: str | None = None, quiet: bool = False) ->
     if _state.use_local():
         _state.session()
         return True
+    if _runtime.kind() == "wasm":
+        # The in-browser workbench: no storage backend yet. Say so once and
+        # let the caller fall back to public data, like any other False.
+        if not quiet:
+            print(
+                "storage: not available in the browser workbench yet -- using public data. "
+                "Open the notebook in molab or on your own machine for course storage."
+            )
+        return False
     token = None
     if button is not None:
         val = getattr(button, "value", None) or {}
