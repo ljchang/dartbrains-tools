@@ -165,7 +165,12 @@ def assignment_card(
     )
 
 
-IMAGES_URL = "https://dartbrains.org/images"
+# The notebook molab runs comes from the repository's master branch, so its
+# figures come from the same place: a figure added to a chapter is reachable
+# the moment the merge lands, not after the next site build. The published
+# site (https://dartbrains.org/images) also serves them; DARTBRAINS_IMAGES_URL
+# switches the fallback without a release.
+IMAGES_URL = "https://raw.githubusercontent.com/ljchang/dartbrains/master/images"
 
 
 def image(rel: str, **kwargs):
@@ -175,7 +180,7 @@ def image(rel: str, **kwargs):
     at ``<repo>/images/<rel>`` and its bytes are embedded (the static site
     then re-encodes them). Anywhere else -- molab, a downloaded notebook --
     only the notebook file exists, so the same image is fetched from the
-    published site instead. ``DARTBRAINS_IMAGES`` overrides the local root,
+    repository on GitHub instead. ``DARTBRAINS_IMAGES`` overrides the local root,
     ``DARTBRAINS_IMAGES_URL`` the fallback.
 
     Usage::
