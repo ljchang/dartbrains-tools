@@ -73,3 +73,28 @@ def test_plot_timeseries_axis_titles_are_overridable():
     fig = plot_timeseries(np.arange(5), xaxis_title="frame", yaxis_title="amp")
     assert fig.layout.xaxis.title.text == "frame"
     assert fig.layout.yaxis.title.text == "amp"
+
+
+def test_image_uses_the_repo_file_when_present_else_the_site(tmp_path, monkeypatch):
+    pytest.importorskip("marimo")
+    from dartbrains_tools.notebook_utils import image
+
+    monkeypatch.delenv("DARTBRAINS_IMAGES", raising=False)
+    monkeypatch.delenv("DARTBRAINS_IMAGES_URL", raising=False)
+    # A checkout: content/<nb>.py beside images/<section>/<file>
+    (tmp_path / "content").mkdir()
+    nb = tmp_path / "content" / "ch.py"
+    nb.write_text("import marimo\n")
+    (tmp_path / "images" / "glm").mkdir(parents=True)
+    (tmp_path / "images" / "glm" / "fig.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    monkeypatch.setenv("DARTBRAINS_NOTEBOOK", str(nb))
+    assert "data:image/png;base64" in image("glm/fig.png").text
+    # molab / a downloaded notebook: only the notebook exists
+    # a molab sandbox: nothing two levels up but the sandbox itself
+    (tmp_path / "sandbox" / "session" / "nb").mkdir(parents=True)
+    alone = tmp_path / "sandbox" / "session" / "nb" / "notebook.py"
+    alone.write_text("import marimo\n")
+    monkeypatch.setenv("DARTBRAINS_NOTEBOOK", str(alone))
+    assert "https://dartbrains.org/images/glm/fig.png" in image("glm/fig.png").text
+    monkeypatch.setenv("DARTBRAINS_IMAGES_URL", "https://mirror.example/img/")
+    assert "https://mirror.example/img/glm/fig.png" in image("/glm/fig.png").text

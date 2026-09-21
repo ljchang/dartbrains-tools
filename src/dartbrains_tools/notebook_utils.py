@@ -8,7 +8,9 @@ module loads cleanly in environments that don't have the optional
 
 from __future__ import annotations
 
+import os
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
 
 
@@ -161,3 +163,44 @@ def assignment_card(
         '<span style="opacity:0.7">Sign in with Dartmouth inside it to submit.</span>'
         "</div></div>"
     )
+
+
+IMAGES_URL = "https://dartbrains.org/images"
+
+
+def image(rel: str, **kwargs):
+    """A figure from the book's ``images/`` directory, wherever the notebook runs.
+
+    In a checkout of the book -- ``marimo edit``, the site build -- the file is
+    at ``<repo>/images/<rel>`` and its bytes are embedded (the static site
+    then re-encodes them). Anywhere else -- molab, a downloaded notebook --
+    only the notebook file exists, so the same image is fetched from the
+    published site instead. ``DARTBRAINS_IMAGES`` overrides the local root,
+    ``DARTBRAINS_IMAGES_URL`` the fallback.
+
+    Usage::
+
+        image("single_subject/MultipleRegression.png")
+    """
+    import marimo as mo
+
+    rel = rel.strip("/")
+    for root in _image_roots():
+        p = root / rel
+        if p.is_file():
+            return mo.image(p, **kwargs)
+    base = os.environ.get("DARTBRAINS_IMAGES_URL", IMAGES_URL).rstrip("/")
+    return mo.image(f"{base}/{rel}", **kwargs)
+
+
+def _image_roots():
+    from .storage._notebook import notebook_path
+
+    override = os.environ.get("DARTBRAINS_IMAGES")
+    if override:
+        yield Path(override)
+    nb = notebook_path()
+    if nb is not None:
+        # content/<chapter>.py -> <repo>/images ; also a notebook beside images/
+        for up in (nb.resolve().parent.parent, nb.resolve().parent):
+            yield up / "images"
