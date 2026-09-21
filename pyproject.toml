@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dartbrains-tools"
-version = "0.2.9"
+version = "0.3.0"
 description = "Helper library and interactive anywidgets for the DartBrains fMRI course"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -32,20 +32,13 @@ dependencies = [
     "plotly>=6.0",
     "pandas",
     "huggingface-hub>=1.0",
-    # dartbrains_tools.storage talks to R2 through obstore. It ships no Pyodide
-    # wheel, so the marker keeps it out of the browser (where storage is not
-    # available anyway) while molab and local kernels get it without any
-    # notebook having to spell out an extra.
-    "obstore>=0.6; sys_platform != 'emscripten'",
-    # storage.signin_button(): the same sign-in widget assignments use.
-    "marimo-grader-client>=0.1.1",
+    # dartbrains_tools.storage wraps marimo_grader_client.storage (0.2.0 is the
+    # first release that has it); obstore comes with the client.
+    "marimo-grader-client>=0.2.0",
 ]
 
 [project.optional-dependencies]
 notebook = ["marimo>=0.21"]
-# Kept so `dartbrains-tools[storage]` keeps resolving; obstore is a core
-# dependency off-browser now (see the marker above).
-storage = ["obstore>=0.6; sys_platform != 'emscripten'"]
 
 [project.urls]
 Homepage = "https://dartbrains.org"
