@@ -95,6 +95,9 @@ def test_image_uses_the_repo_file_when_present_else_the_site(tmp_path, monkeypat
     alone = tmp_path / "sandbox" / "session" / "nb" / "notebook.py"
     alone.write_text("import marimo\n")
     monkeypatch.setenv("DARTBRAINS_NOTEBOOK", str(alone))
-    assert "https://dartbrains.org/images/glm/fig.png" in image("glm/fig.png").text
+    assert (
+        "https://raw.githubusercontent.com/ljchang/dartbrains/master/images/glm/fig.png"
+        in image("glm/fig.png").text
+    )
     monkeypatch.setenv("DARTBRAINS_IMAGES_URL", "https://mirror.example/img/")
     assert "https://mirror.example/img/glm/fig.png" in image("/glm/fig.png").text
