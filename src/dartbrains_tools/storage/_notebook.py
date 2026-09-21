@@ -21,6 +21,21 @@ _OPEN, _CLOSE = "# /// script", "# ///"
 _LINE = re.compile(r"^#\s*([A-Za-z0-9_.-]+)\s*=\s*(.+?)\s*$")
 
 
+def notebook_path() -> Path | None:
+    """The running notebook's file, when it can be found."""
+    for candidate in (
+        os.environ.get("DARTBRAINS_NOTEBOOK"),
+        os.environ.get("GRADER_NOTEBOOK_PATH"),
+        _marimo_filename(),
+        _main_file(),
+    ):
+        if candidate:
+            p = Path(str(candidate))
+            if p.is_file():
+                return p
+    return None
+
+
 def notebook_source() -> str | None:
     for candidate in (
         os.environ.get("DARTBRAINS_NOTEBOOK"),
