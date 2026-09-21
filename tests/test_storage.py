@@ -535,3 +535,12 @@ def test_molab_is_recognised_from_two_sandbox_signals(monkeypatch, tmp_path):
     )
     assert _runtime.kind() == "molab"
     assert _runtime.token_file() == tmp_path / ".env"
+
+
+def test_connect_is_false_in_the_browser(monkeypatch, capsys):
+    monkeypatch.setenv("DARTBRAINS_RUNTIME", "wasm")
+    monkeypatch.delenv("DARTBRAINS_STORAGE_ROOT", raising=False)
+    _state.reset()
+    assert storage.connect() is False
+    assert "browser workbench" in capsys.readouterr().out
+    assert storage.connect(quiet=True) is False
