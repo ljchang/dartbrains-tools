@@ -87,14 +87,14 @@ def test_image_uses_the_repo_file_when_present_else_the_site(tmp_path, monkeypat
     nb.write_text("import marimo\n")
     (tmp_path / "images" / "glm").mkdir(parents=True)
     (tmp_path / "images" / "glm" / "fig.png").write_bytes(b"\x89PNG\r\n\x1a\n")
-    monkeypatch.setenv("DARTBRAINS_NOTEBOOK", str(nb))
+    monkeypatch.setenv("GRADER_NOTEBOOK_PATH", str(nb))
     assert "data:image/png;base64" in image("glm/fig.png").text
     # molab / a downloaded notebook: only the notebook exists
     # a molab sandbox: nothing two levels up but the sandbox itself
     (tmp_path / "sandbox" / "session" / "nb").mkdir(parents=True)
     alone = tmp_path / "sandbox" / "session" / "nb" / "notebook.py"
     alone.write_text("import marimo\n")
-    monkeypatch.setenv("DARTBRAINS_NOTEBOOK", str(alone))
+    monkeypatch.setenv("GRADER_NOTEBOOK_PATH", str(alone))
     assert (
         "https://raw.githubusercontent.com/ljchang/dartbrains/master/images/glm/fig.png"
         in image("glm/fig.png").text
