@@ -66,12 +66,13 @@ class _Dataset:
 _PUBLIC = {
     "localizer": "dartbrains/localizer",
     "sherlock": "dartbrains/sherlock",
+    "salary": "dartbrains/salary",
     "paranoia": "dartbrains/paranoia",
 }
 
 
 def dataset(name: str) -> _Dataset:
-    """A public dataset; no sign-in. Names: localizer, sherlock, paranoia."""
+    """A public dataset; no sign-in. Names: localizer, sherlock, paranoia, salary."""
     if name not in _PUBLIC:
         raise _storage.NoSuchMount(f"unknown public dataset {name!r}; have {', '.join(_PUBLIC)}")
     return _Dataset(name, _PUBLIC[name])

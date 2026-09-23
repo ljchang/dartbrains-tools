@@ -19,6 +19,7 @@ pip install "dartbrains-tools[notebook]"
 - `dartbrains_tools.data.localizer` — load the Pinel Localizer dataset from the Hugging Face Hub. The same API is re-exported at `dartbrains_tools.data` for back-compat.
 - `dartbrains_tools.data.sherlock` — load the Sherlock naturalistic-fMRI dataset (Chen et al. 2017).
 - `dartbrains_tools.data.paranoia` — load the Paranoia naturalistic-fMRI dataset (Finn et al. 2018).
+- `dartbrains_tools.data.salary` — the salary tables the pandas, polars and plotting tutorials use (`get_file("salary.csv")`).
 - `dartbrains_tools.mr_simulations` — Bloch equation solvers, signal generators,
   HRF, and Plotly visualization helpers.
 - `dartbrains_tools.mr_widgets` — 10 anywidgets for interactive MR physics teaching
@@ -59,6 +60,12 @@ onsets = sherlock.load_onsets("watch")
 
 # Paranoia
 from dartbrains_tools.data import paranoia
+
+# Salary tables (pandas / polars / plotting)
+from dartbrains_tools.data import salary
+import pandas as pd
+
+df = pd.read_csv(salary.get_file("salary.csv"))
 
 bold = paranoia.get_file("sub-tb2994", run=1, suffix="bold")
 participants = paranoia.load_participants()
