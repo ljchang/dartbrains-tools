@@ -153,3 +153,11 @@ def test_notebook_utils_module():
 
         pytest.skip("marimo not installed (notebook extra)")
     assert callable(youtube)
+
+
+def test_version_matches_the_installed_distribution():
+    from importlib.metadata import version
+
+    import dartbrains_tools
+
+    assert dartbrains_tools.__version__ == version("dartbrains-tools")

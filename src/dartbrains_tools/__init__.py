@@ -1,6 +1,13 @@
 """DartBrains helper library: data loaders, MR physics simulations, anywidgets."""
 
-__version__ = "0.3.0"
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    # From the installed distribution, so it cannot drift from pyproject.toml
+    # (it said 0.3.0 in the 0.3.1 release).
+    __version__ = version("dartbrains-tools")
+except PackageNotFoundError:  # a source checkout that is not installed
+    __version__ = "0+unknown"
 
 from . import bids, mr_simulations, mr_widgets
 
