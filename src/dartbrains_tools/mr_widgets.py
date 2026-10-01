@@ -102,3 +102,26 @@ class SmoothingWidget(anywidget.AnyWidget):
     _esm = _JS_DIR / "smoothing_widget.js"
 
     fwhm = traitlets.Float(0.0).tag(sync=True)
+
+
+class EqualizerWidget(anywidget.AnyWidget):
+    """Looping audio player with a graphic equalizer drawn as a frequency response.
+
+    Drop (or browse to) an audio file; it plays on a loop through one biquad filter
+    per band. ``gains`` are linear in [0, 1] (1 = pass, 0 = remove), low to high
+    frequency, and the plot shows the chain's combined response the same way
+    ``scipy.signal.freqz`` does. The audio stays in the browser; only ``gains`` and
+    ``filename`` sync back to Python.
+    """
+    _esm = _JS_DIR / "equalizer_widget.js"
+
+    bands = traitlets.List(
+        traitlets.Float(),
+        [32.0, 64.0, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0],
+    ).tag(sync=True)
+    gains = traitlets.List(traitlets.Float(), [1.0] * 10).tag(sync=True)
+    filename = traitlets.Unicode("").tag(sync=True)
+
+    @traitlets.validate("gains")
+    def _clip_gains(self, proposal):
+        return [min(1.0, max(0.0, float(g))) for g in proposal["value"]]
