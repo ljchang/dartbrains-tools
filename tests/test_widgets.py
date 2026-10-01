@@ -9,6 +9,7 @@ from dartbrains_tools.mr_widgets import (
     ConvolutionWidget,
     CostFunctionWidget,
     EncodingWidget,
+    EqualizerWidget,
     KSpaceWidget,
     NetMagnetizationWidget,
     PrecessionWidget,
@@ -22,6 +23,7 @@ ALL_WIDGETS = [
     ConvolutionWidget,
     CostFunctionWidget,
     EncodingWidget,
+    EqualizerWidget,
     KSpaceWidget,
     NetMagnetizationWidget,
     PrecessionWidget,
@@ -63,8 +65,8 @@ def test_widget_esm_loads_from_package(widget_cls):
     )
 
 
-def test_all_ten_js_files_present():
-    """All 10 expected JS widget files ship with the package."""
+def test_all_js_files_present():
+    """All 11 expected JS widget files ship with the package."""
     import dartbrains_tools
 
     js_dir = Path(dartbrains_tools.__file__).parent / "js"
@@ -76,6 +78,7 @@ def test_all_ten_js_files_present():
             "convolution_widget.js",
             "cost_function_widget.js",
             "encoding_widget.js",
+            "equalizer_widget.js",
             "kspace_widget.js",
             "net_magnetization_widget.js",
             "precession_widget.js",
@@ -163,3 +166,10 @@ def test_widget_js_has_animate_guard(widget_cls):
     assert "console.warn(" in js, (
         f"{widget_cls.__name__}: missing console.warn() in animate() catch block"
     )
+
+
+def test_equalizer_gains_are_clipped_to_unit_range():
+    w = EqualizerWidget()
+    w.gains = [-0.5, 0.25, 2.0] + [1.0] * 7
+    assert w.gains[:3] == [0.0, 0.25, 1.0]
+    assert len(w.gains) == len(w.bands)

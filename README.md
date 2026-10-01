@@ -22,10 +22,11 @@ pip install "dartbrains-tools[notebook]"
 - `dartbrains_tools.data.salary` — the salary tables the pandas, polars and plotting tutorials use (`get_file("salary.csv")`).
 - `dartbrains_tools.mr_simulations` — Bloch equation solvers, signal generators,
   HRF, and Plotly visualization helpers.
-- `dartbrains_tools.mr_widgets` — 10 anywidgets for interactive MR physics teaching
+- `dartbrains_tools.mr_widgets` — 11 anywidgets for interactive teaching
   (`PrecessionWidget`, `SpinEnsembleWidget`, `KSpaceWidget`, `ConvolutionWidget`,
   `EncodingWidget`, `CompassWidget`, `NetMagnetizationWidget`, `TransformCubeWidget`,
-  `CostFunctionWidget`, `SmoothingWidget`).
+  `CostFunctionWidget`, `SmoothingWidget`, and `EqualizerWidget` — a looping audio
+  player whose graphic EQ is drawn as a filter's frequency response).
 - `dartbrains_tools.storage` — course storage behind Dartmouth sign-in: the class copy of the
   data, each student's private space, assignment data released on a schedule, and a durable
   cache. A thin wrapper over [`marimo_grader_client.storage`](https://marimograder.org/students/course-storage/)
