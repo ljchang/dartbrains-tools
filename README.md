@@ -12,6 +12,9 @@ pip install dartbrains-tools
 
 # Optional: include marimo for notebook_utils.youtube()
 pip install "dartbrains-tools[notebook]"
+
+# Optional: native-Python JIT for repeated cluster simulations
+pip install "dartbrains-tools[simulation]"
 ```
 
 ## Modules
@@ -22,6 +25,10 @@ pip install "dartbrains-tools[notebook]"
 - `dartbrains_tools.data.salary` — the salary tables the pandas, polars and plotting tutorials use (`get_file("salary.csv")`).
 - `dartbrains_tools.mr_simulations` — Bloch equation solvers, signal generators,
   HRF, and Plotly visualization helpers.
+- `dartbrains_tools.simulations` — seeded maximum-t experiments and four-connected
+  cluster simulations. NumPy computes t statistics without unused p-values;
+  optional Numba accelerates cluster labeling, with SciPy as the default fallback.
+  These finite, synthetic 2D examples are teaching tools, not whole-brain inference.
 - `dartbrains_tools.mr_widgets` — 11 anywidgets for interactive teaching
   (`PrecessionWidget`, `SpinEnsembleWidget`, `KSpaceWidget`, `ConvolutionWidget`,
   `EncodingWidget`, `CompassWidget`, `NetMagnetizationWidget`, `TransformCubeWidget`,
