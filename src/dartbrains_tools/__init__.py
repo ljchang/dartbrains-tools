@@ -18,6 +18,7 @@ __all__ = [
     "mr_simulations",
     "mr_widgets",
     "notebook_utils",  # lazy: requires the [notebook] extra (marimo)
+    "simulations",     # lazy: optional Numba loads only when a kernel is requested
     "storage",         # lazy: obstore (absent in the browser) loads only once a bucket opens
 ]
 
@@ -32,7 +33,7 @@ def __getattr__(name):
     # `notebook_utils` is lazy for a different reason: it requires the [notebook]
     # extra (marimo). Both use importlib.import_module -- NOT `from . import name` --
     # because the latter re-enters this __getattr__ and recurses infinitely.
-    if name in ("data", "notebook_utils", "storage"):
+    if name in ("data", "notebook_utils", "simulations", "storage"):
         import importlib
 
         return importlib.import_module(f"{__name__}.{name}")
