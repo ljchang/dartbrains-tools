@@ -23,6 +23,10 @@ pip install "dartbrains-tools[simulation]"
 - `dartbrains_tools.data.sherlock` — load the Sherlock naturalistic-fMRI dataset (Chen et al. 2017).
 - `dartbrains_tools.data.paranoia` — load the Paranoia naturalistic-fMRI dataset (Finn et al. 2018).
 - `dartbrains_tools.data.salary` — the salary tables the pandas, polars and plotting tutorials use (`get_file("salary.csv")`).
+- `dartbrains_tools.bids` — find and load files in a BIDS dataset (`get_subjects`, `get_tr`,
+  `get_file`, `load_events`, `load_confounds`). The root is a folder or a storage mount such as
+  `storage.assignment("<slug>")`; from a mount each file is downloaded the first time it is asked
+  for, so a notebook fetches only the subjects and files it uses.
 - `dartbrains_tools.mr_simulations` — Bloch equation solvers, signal generators,
   HRF, and Plotly visualization helpers.
 - `dartbrains_tools.simulations` — seeded maximum-t experiments and four-connected
