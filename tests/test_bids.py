@@ -1,14 +1,54 @@
 """Path-construction tests for the bids module.
 
-Builds a fake BIDS tree in tmp_path; no network, no real data.
+Builds a fake BIDS tree in tmp_path; no network, no real data. Every tree is
+used twice: as a folder on disk, and as a storage mount over that folder that
+behaves like R2 (each file is downloaded into a cache on first use).
 """
 
 import json
 
 import pandas as pd
 import pytest
+from marimo_grader_client.storage._fs import LocalFS
+from marimo_grader_client.storage._mount import Mount
 
 from dartbrains_tools import bids
+
+
+class _RemoteFS:
+    """A folder that looks like object storage: no ``root``, so Mount.local_path
+    downloads into its cache instead of handing back the file in place."""
+
+    native = None
+
+    def __init__(self, root):
+        self._dir = LocalFS(root)
+        self.downloaded = []
+
+    def head(self, key):
+        return self._dir.head(key)
+
+    def list(self, prefix=""):
+        return self._dir.list(prefix)
+
+    def get_bytes(self, key):
+        return self._dir.get_bytes(key)
+
+    def download(self, key, dest):
+        self.downloaded.append(key)
+        self._dir.download(key, dest)
+
+
+def _mount(root, cache):
+    return Mount("/assignments/demo", "assignments/demo/", "ro", _RemoteFS(root), cache)
+
+
+@pytest.fixture(params=["folder", "mount"])
+def as_root(request, tmp_path):
+    """Turn a BIDS tree on disk into what a notebook passes as ``bids_root``."""
+    if request.param == "folder":
+        return lambda root: root
+    return lambda root: _mount(root, tmp_path / "cache")
 
 
 # ---------------------------------------------------------------------------
@@ -20,7 +60,7 @@ def _touch(path, text=""):
 
 
 @pytest.fixture
-def fake_bids(tmp_path):
+def fake_bids(tmp_path, as_root):
     """A BIDS tree with two subjects, one task, two runs (zero-padded)."""
     root = tmp_path / "ds"
 
@@ -50,37 +90,37 @@ def fake_bids(tmp_path):
             _touch(deriv / "func" / f"{stem}_desc-confounds_timeseries.tsv",
                    "trans_x\trot_x\n0.0\t0.0\n")
 
-    return root
+    return as_root(root)
 
 
 @pytest.fixture
-def fake_bids_legacy_confounds(tmp_path):
+def fake_bids_legacy_confounds(tmp_path, as_root):
     """A BIDS tree using the older fmriprep confounds filename."""
     root = tmp_path / "ds_legacy"
     sub = "sub-S01"
     deriv = root / "derivatives" / "fmriprep" / sub / "func"
     _touch(deriv / f"{sub}_task-stopsignal_run-01_desc-confounds_regressors.tsv",
            "trans_x\n0.0\n")
-    return root
+    return as_root(root)
 
 
 @pytest.fixture
-def fake_bids_unpadded_runs(tmp_path):
+def fake_bids_unpadded_runs(tmp_path, as_root):
     """A BIDS tree where runs are NOT zero-padded (run-1 not run-01)."""
     root = tmp_path / "ds_unpadded"
     sub = "sub-S01"
     base = root / sub / "func"
     _touch(base / f"{sub}_task-stopsignal_run-1_bold.nii.gz")
-    return root
+    return as_root(root)
 
 
 @pytest.fixture
-def fake_bids_betas(tmp_path):
+def fake_bids_betas(tmp_path, as_root):
     root = tmp_path / "ds_betas"
     beta = root / "derivatives" / "betas"
     _touch(beta / "S01_betas.nii.gz")
     _touch(beta / "S01_beta_audio_computation.nii.gz")
-    return root
+    return as_root(root)
 
 
 # ---------------------------------------------------------------------------
@@ -171,12 +211,12 @@ class TestDerivativesScope:
                              task="stopsignal", run=1)
         assert path.endswith("_desc-confounds_regressors.tsv")
 
-    def test_custom_pipeline(self, tmp_path):
+    def test_custom_pipeline(self, tmp_path, as_root):
         root = tmp_path / "ds"
         _touch(root / "derivatives" / "myown" / "sub-S01" / "func"
                / "sub-S01_task-foo_run-01_space-MNI152NLin2009cAsym"
                  "_desc-preproc_bold.nii.gz")
-        path = bids.get_file(root, "S01", "derivatives", "bold",
+        path = bids.get_file(as_root(root), "S01", "derivatives", "bold",
                              task="foo", run=1, pipeline="myown")
         assert "/derivatives/myown/" in path
 
@@ -238,3 +278,57 @@ class TestLoaders:
         df = bids.load_confounds(fake_bids, "S01", task="stopsignal", run=1)
         assert isinstance(df, pd.DataFrame)
         assert "trans_x" in df.columns
+
+
+class TestMount:
+    """A mount is read lazily: listings and HEADs to find things, a download
+    only for the file asked for."""
+
+    @pytest.fixture
+    def ds(self, tmp_path):
+        root = tmp_path / "ds"
+        _touch(root / "task-stopsignal_bold.json", json.dumps({"RepetitionTime": 2.0}))
+        for sub in ("sub-01", "sub-02", "sub-03"):
+            stem = f"{sub}_task-stopsignal_run-01"
+            _touch(root / sub / "func" / f"{stem}_bold.nii.gz", "x" * 100)
+            _touch(root / "derivatives" / "fmriprep" / sub / "func"
+                   / f"{stem}_desc-confounds_timeseries.tsv", "trans_x\n0.0\n")
+        _touch(root / "materials" / "notes.pdf")  # not a subject
+        return _mount(root, tmp_path / "cache")
+
+    def test_finding_downloads_nothing(self, ds):
+        assert bids.get_subjects(ds) == ["01", "02", "03"]
+        assert ds.fs.downloaded == []
+
+    def test_only_the_requested_file_is_downloaded(self, ds):
+        path = bids.get_file(ds, "02", "raw", "bold", task="stopsignal", run=1)
+        assert ds.fs.downloaded == ["sub-02/func/sub-02_task-stopsignal_run-01_bold.nii.gz"]
+        assert open(path).read() == "x" * 100
+        bids.get_file(ds, "02", "raw", "bold", task="stopsignal", run=1)
+        assert len(ds.fs.downloaded) == 1  # the cached copy is reused
+
+    def test_tr_and_confounds(self, ds):
+        assert bids.get_tr(ds, "stopsignal") == 2.0
+        df = bids.load_confounds(ds, "01", task="stopsignal", run=1)
+        assert list(df.columns) == ["trans_x"]
+        assert sorted(ds.fs.downloaded) == [
+            "derivatives/fmriprep/sub-01/func/sub-01_task-stopsignal_run-01_desc-confounds_timeseries.tsv",
+            "task-stopsignal_bold.json",
+        ]
+
+    def test_tr_from_a_subject_sidecar(self, tmp_path):
+        root = tmp_path / "ds"
+        _touch(root / "sub-01" / "func" / "sub-01_task-go_bold.json",
+               json.dumps({"RepetitionTime": 1.5}))
+        # A nested copy (sub-01/sub-01/func/...) must not be read as a sidecar.
+        _touch(root / "sub-01" / "sub-01" / "func" / "sub-01_task-go_bold.json",
+               json.dumps({"RepetitionTime": 9.0}))
+        assert bids.get_tr(_mount(root, tmp_path / "cache"), "go") == 1.5
+
+    def test_missing_file_names_the_mount(self, ds):
+        with pytest.raises(FileNotFoundError, match="/assignments/demo/sub-09/func/"):
+            bids.get_file(ds, "09", "raw", "bold", task="stopsignal", run=1)
+
+    def test_rejects_other_types(self):
+        with pytest.raises(TypeError, match="path or a storage mount"):
+            bids.get_subjects(42)
